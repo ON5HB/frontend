@@ -1,7 +1,7 @@
 
 import getColormap, { computeColormapArray } from './lib/colormaps.js'
-import { createWaterfallDecoder } from './lib/wrappers.js'
-import Deque from 'double-ended-queue'
+import { JitterBuffer, createWaterfallDecoder } from './lib/wrappers.js'
+import Denque from 'denque'
 import 'core-js/actual/set-immediate'
 import 'core-js/actual/clear-immediate'
 
@@ -12,13 +12,15 @@ export default class SpectrumWaterfall {
     this.spectrum = false
     this.waterfall = false
 
-    this.waterfallQueue = new Deque(10)
-    this.drawnWaterfallQueue = new Deque(4096)
+    this.waterfallQueue = new Denque(10)
+    this.drawnWaterfallQueue = new Denque(4096)
     this.lagTime = 0
     this.spectrumAlpha = 0.5
     this.spectrumFiltered = [[-1, -1], [0]]
 
-    this.waterfallColourShift = 80
+    this.waterfallColourShift = 130
+    this.minWaterfall = -30
+    this.maxWaterfall = 110
     // https://gist.github.com/mikhailov-work/ee72ba4191942acecc03fe6da94fc73f
     this.colormap = []
 
@@ -30,11 +32,38 @@ export default class SpectrumWaterfall {
     this.updateTimeout = setTimeout(() => {}, 0)
 
     this.lineResets = 0
+
+    this.bands = [
+      { name: '80M HAM', startFreq: 3500000, endFreq: 3900000, color: 'rgba(50, 168, 72, 0.3)' },
+      { name: '49M AM', startFreq: 5900000, endFreq: 6200000, color: 'rgba(199, 12, 193, 0.3)' },
+      { name: '40M HAM', startFreq: 7000000, endFreq: 7200000, color: 'rgba(50, 78, 168, 0.3)' }, 
+      { name: '41M AM', startFreq: 7200000, endFreq: 7450000, color: 'rgba(199, 12, 193, 0.3)' }, 
+      { name: '31M AM', startFreq: 9400000, endFreq: 9900000, color: 'rgba(199, 12, 193, 0.3)' }, 
+      { name: '30M HAM', startFreq: 10100000, endFreq: 10150000, color: 'rgba(199, 49, 12, 0.3)' }, 
+      { name: '25M AM', startFreq: 11600000, endFreq: 12100000, color: 'rgba(199, 12, 193, 0.3)' }, 
+      { name: '22M AM', startFreq: 13570000, endFreq: 13870000, color: 'rgba(199, 12, 193, 0.3)' }, 
+      { name: '20M HAM', startFreq: 14000000, endFreq: 14350000, color: 'rgba(255, 0, 0, 0.3)' }, 
+      { name: '19M AM', startFreq: 15100000, endFreq: 15800000, color: 'rgba(199, 12, 193, 0.3)' }, 
+      { name: '16M AM', startFreq: 17480000, endFreq: 17900000, color: 'rgba(199, 12, 193, 0.3)' }, 
+      { name: '17M AM', startFreq: 18068000, endFreq: 18168000, color: 'rgba(199, 12, 193, 0.3)' }, 
+      { name: '15M AM', startFreq: 18900000, endFreq: 19020000, color: 'rgba(199, 12, 193, 0.3)' }, 
+      { name: '15M HAM', startFreq: 21000000, endFreq: 21450000, color: 'rgba(6, 204, 214, 0.3)' }, 
+      { name: '13M AM', startFreq: 21450000, endFreq: 21850000, color: 'rgba(199, 12, 193, 0.3)' }, 
+      { name: '12M HAM', startFreq: 24890000, endFreq: 24990000, color: 'rgba(2, 155, 250, 0.3)' }, 
+      { name: '11M AM', startFreq: 25670000, endFreq: 26100000, color: 'rgba(199, 12, 193, 0.3)' },
+      { name: 'CB', startFreq: 26965000, endFreq: 27405000, color: 'rgba(3, 227, 252, 0.3)' },  
+      { name: '10M HAM', startFreq: 28000000, endFreq: 29700000, color: 'rgba(151, 2, 250, 0.3)' }, 
+      
+
+    ];
+
+    
   }
 
   initCanvas (settings) {
     this.canvasElem = settings.canvasElem
     this.ctx = this.canvasElem.getContext('2d')
+    this.ctx.imageSmoothingEnabled = false
     this.canvasWidth = this.canvasElem.width
     this.canvasHeight = this.canvasElem.height
     this.backgroundColor = window.getComputedStyle(document.body, null).getPropertyValue('background-color')
@@ -55,16 +84,34 @@ export default class SpectrumWaterfall {
 
     this.tempCanvasElem = settings.tempCanvasElem
     this.tempCtx = this.tempCanvasElem.getContext('2d')
-    this.tempCanvasElem.width = this.canvasWidth
     this.tempCanvasElem.height = 200
 
     this.waterfall = true
 
-    /*window.addEventListener('resize', () => {
-      this.canvasElem.height = window.innerHeight * 2
-      this.canvasHeight = this.canvasElem.height
-      this.redrawWaterfall()
-    })*/
+    let resizeTimeout;
+    let resizeCallback = () => {
+      // Create a new canvas and copy over new canvas
+      let resizeCanvas = document.createElement('canvas')
+      resizeCanvas.width = this.canvasElem.width
+      resizeCanvas.height = this.canvasElem.height
+      let resizeCtx = resizeCanvas.getContext('2d')
+      resizeCtx.drawImage(this.canvasElem, 0, 0)
+
+      this.setCanvasWidth()
+      this.curLine = Math.ceil(this.curLine * this.canvasElem.height / resizeCanvas.height)
+      // Copy resizeCanvas to new canvas with scaling
+      this.ctx.drawImage(resizeCanvas, 0, 0, resizeCanvas.width, resizeCanvas.height, 0, 0, this.canvasElem.width, this.canvasElem.height)
+      this.updateGraduation()
+      //this.redrawWaterfall()
+      resizeTimeout = undefined
+    }
+    window.addEventListener('resize', () => {
+      if (resizeTimeout) {
+        clearTimeout(resizeTimeout)
+      }
+      resizeCallback()
+      resizeTimeout = setTimeout(resizeCallback, 250)
+    })
   }
 
   async init () {
@@ -89,6 +136,27 @@ export default class SpectrumWaterfall {
     this.waterfallSocket.close()
   }
 
+  setCanvasWidth() {
+    let canvasWidth = window.screen.width * window.devicePixelRatio
+
+    this.canvasElem.width = canvasWidth
+
+    this.canvasScale = canvasWidth / 1024
+
+    // Aspect ratio is 1024 to 128px
+    this.spectrumCanvasElem.width = canvasWidth
+    this.spectrumCanvasElem.height = canvasWidth / 1024 * 128
+
+    // Aspect ratio is 1024 to 20px
+    this.graduationCanvasElem.width = canvasWidth
+    this.graduationCanvasElem.height = canvasWidth / 1024 * 20
+
+    //this.canvasElem.height = window.outerHeight * window.devicePixelRatio * 2
+    this.canvasElem.height = 100 * window.devicePixelRatio * 2
+    this.canvasWidth = this.canvasElem.width
+    this.canvasHeight = this.canvasElem.height
+  }
+
   socketMessageInitial (event) {
     // First message gives the parameters in json
     if (!(event.data instanceof ArrayBuffer)) {
@@ -103,40 +171,22 @@ export default class SpectrumWaterfall {
       this.totalBandwidth = settings.total_bandwidth
       this.overlap = settings.overlap
 
-      let canvasWidth = this.canvasElem.parentElement.clientWidth * 2
-
-      this.canvasElem.width = canvasWidth
-
-      this.canvasScale = canvasWidth / 1024
-
-      // Aspect ratio is 1024 to 128px
-      this.spectrumCanvasElem.width = canvasWidth
-      this.spectrumCanvasElem.height = canvasWidth / 1024 * 128
-
-      this.tempCanvasElem.width = canvasWidth
-
-      // Aspect ratio is 1024 to 20px
-      this.graduationCanvasElem.width = canvasWidth
-      this.graduationCanvasElem.height = canvasWidth / 1024 * 20
-
-      this.canvasElem.height = this.canvasElem.parentElement.clientHeight * 2
-      this.canvasWidth = this.canvasElem.width
-      this.canvasHeight = this.canvasElem.height
-
-      this.tempCanvasElem.width =   settings.waterfall_size
+      this.setCanvasWidth()
+      this.tempCanvasElem.width = settings.waterfall_size * 2
 
       this.ctx.fillStyle = this.backgroundColor
       this.ctx.fillRect(0, 0, this.canvasElem.width, this.canvasElem.height)
 
       const skipNum = Math.max(1, Math.floor((this.sps / this.fftSize) / 10.0) * 2)
       const waterfallFPS = (this.sps / this.fftSize) / (skipNum / 2)
-
+      //this.waterfallQueue = new JitterBuffer(1000 / waterfallFPS)
+      
       console.log('Waterfall FPS: ' + waterfallFPS)
 
       this.waterfallDrawInterval = setInterval(() => {
         //requestAnimationFrame(this.drawSpectrogram.bind(this))
         this.drawSpectrogram()
-      }, Math.floor(1000 / waterfallFPS))
+      }, 1000 / waterfallFPS)
 
       this.waterfallL = 0
       this.waterfallR = this.waterfallMaxSize
@@ -163,24 +213,40 @@ export default class SpectrumWaterfall {
   }
   
   enqueueSpectrogram (array) {
-    // Do not decode or draw if not requested
+    
+    // Decode and extract header
+    this.waterfallDecoder.decode(array).forEach((waterfallArray) => {
+      this.waterfallQueue.unshift(waterfallArray)
+    })
+
+    // Do draw if not requested
     if (!this.waterfall && !this.spectrum) {
       this.waterfallQueue.clear()
       return
     }
-    if (this.waterfallQueue.length > 5) {
-      this.waterfallQueue.clear()
+
+    while (this.waterfallQueue.length > 2) {
+      this.waterfallQueue.pop()
     }
-
-    // Decode and extract header
-    this.waterfallDecoder.decode(array).forEach((element) => {
-      this.waterfallQueue.unshift(element)
-    })
   }
 
-  transformValue (x) {
-    return Math.min(Math.max(x + this.waterfallColourShift, 0), 255)
+  //transformValue (x) {
+  //  return Math.min(Math.max(x + this.waterfallColourShift, 0), 255)
+  //}
+  transformValue(value) {
+      // Clamp value between minValue and maxValue
+      let clampedValue = Math.max(this.minWaterfall, Math.min(this.maxWaterfall, value));
+      
+      // Normalize to 0-1 based on min and max settings
+      let normalizedValue = (clampedValue - this.minWaterfall) / (this.maxWaterfall - this.minWaterfall);
+      
+      // Scale normalized value to colormap range (0-255)
+      let colormapIndex = Math.floor(normalizedValue * 255);
+      
+      // Ensure index is within the bounds of the colormap array
+      return Math.max(0, Math.min(255, colormapIndex));
   }
+
 
   // Helper functions
 
@@ -221,7 +287,7 @@ export default class SpectrumWaterfall {
       return
     }
 
-    const [waterfallArray, curL, curR] = this.waterfallQueue.pop()
+    const {data: waterfallArray, l: curL, r: curR} = this.waterfallQueue.pop()
     
     const [arr, pxL, pxR] = this.calculateOffsets(waterfallArray, curL, curR)
     
@@ -240,6 +306,7 @@ export default class SpectrumWaterfall {
   }
 
   async redrawWaterfall () {
+    return;
     const toDraw = this.drawnWaterfallQueue.toArray()
     const curLineReset = this.lineResets
     const curLine = this.curLine
@@ -261,40 +328,32 @@ export default class SpectrumWaterfall {
     }
   }
 
-  drawWaterfallLine (arr, pxL, pxR, line) {
+  drawWaterfallLine(arr, pxL, pxR, line) {
     // Draw the new line
-    const colorarr = this.ctx.createImageData(arr.length, 1)
-
-    const bmparr = new Uint8Array(arr.length * 4)
+    const colorarr = this.ctx.createImageData(arr.length, 1);
+  
     for (let i = 0; i < arr.length; i++) {
-      colorarr.data.set(this.colormap[arr[i]], i * 4)
+      
 
-      bmparr[i * 4 + 0] = 255
-      bmparr[i * 4 + 1] = this.colormap[arr[i]][2]
-      bmparr[i * 4 + 2] = this.colormap[arr[i]][1]
-      bmparr[i * 4 + 3] = this.colormap[arr[i]][0]
+      colorarr.data.set(this.colormap[arr[i]], i * 4);
     }
   
-    this.tempCtx.putImageData(colorarr, 0, 0)
+    this.tempCtx.putImageData(colorarr, 0, 0);
     // Resize the line into the correct width
-    this.ctx.drawImage(this.tempCanvasElem, 0, 0, arr.length, 1, pxL, line, pxR - pxL, 1)
+    this.ctx.drawImage(this.tempCanvasElem, 0, 0, arr.length, 1, pxL, line, pxR - pxL, 1);
   }
-
-  drawWaterfall (arr, pxL, pxR, curL, curR) {
-    this.drawWaterfallLine(arr, pxL, pxR, this.curLine)
-    
-    // Shift the spectrogram down by 1 pixel
-    this.canvasElem.style.transform = `translate3d(0, -${((this.curLine + 1) / this.canvasHeight * 100)}%, 0) rotate(.0001deg)`
-
-    // Once we have reached the start of the canvas, reset to the middle
-    if (this.curLine === 0) {
-      this.ctx.drawImage(this.canvasElem, 0, this.canvasHeight / 2)
-      this.curLine = this.canvasHeight / 2
-      this.lineResets++
-    }
-    this.curLine -= 1
+  
+  drawWaterfall(arr, pxL, pxR, curL, curR) {
+    // Copy the current canvas content and shift it down by one pixel
+    const imageData = this.ctx.getImageData(0, 0, this.canvasWidth, this.canvasHeight - 1);
+    this.ctx.putImageData(imageData, 0, 1);
+  
+    // The current line is now effectively shifted down by one, so draw the new line at the top
+    this.drawWaterfallLine(arr, pxL, pxR, 0);
+  
+    // No need for CSS transform or tracking curLine for shifting content
   }
-
+  
   drawSpectrum (arr, pxL, pxR, curL, curR) {
     if (curL !== this.spectrumFiltered[0][0] || curR !== this.spectrumFiltered[0][1]) {
       this.spectrumFiltered[1] = arr
@@ -397,6 +456,47 @@ export default class SpectrumWaterfall {
       this.graduationCtx.stroke()
     }
 
+    // Define the height of the band marker rectangle
+    const bandHeight = 12; // Example height, adjust as needed
+
+    // Loop through each band and draw it
+    this.bands.forEach(band => {
+      const startIdx = this.freqToIdx(band.startFreq);
+      const endIdx = this.freqToIdx(band.endFreq);
+      const startX = this.idxToCanvasX(startIdx);
+      const endX = this.idxToCanvasX(endIdx);
+      const bandWidth = endX - startX;
+
+      // Draw the band range as a rectangle
+      this.graduationCtx.fillStyle = band.color;
+      this.graduationCtx.fillRect(startX, this.graduationCanvasElem.height - bandHeight, bandWidth, bandHeight);
+
+      // Dynamically calculate font size based on the width of the band marker
+      let fontSize = Math.max(Math.min(bandWidth / band.name.length, 10), 4);
+
+
+      // Set the font for the band label
+      this.graduationCtx.fillStyle = 'white';
+      this.graduationCtx.font = `${fontSize}px Arial`;
+      this.graduationCtx.textAlign = 'center';
+
+      // Ensure the font size is such that the text will fit within the rectangle
+      if (this.graduationCtx.measureText(band.name).width < bandWidth) {
+        // Draw the text centered within the band marker rectangle
+        this.graduationCtx.fillText(band.name, (startX + endX) / 2, this.graduationCanvasElem.height - bandHeight / 2 + fontSize / 3);
+      } else {
+        // If the text does not fit, we could scale down the font size until it does or skip drawing the label
+        // This is a simple loop to decrease font size until the text fits
+        while (this.graduationCtx.measureText(band.name).width >= bandWidth && fontSize > 6) {
+          fontSize--;
+          this.graduationCtx.font = `${fontSize}px Arial`;
+        }
+        if (fontSize > 4) { // Check again if text fits after resizing, then draw it
+          this.graduationCtx.fillText(band.name, (startX + endX) / 2, this.graduationCanvasElem.height - bandHeight / 2 + fontSize / 3);
+        }
+      }
+    });
+
     this.drawClients()
   }
 
@@ -464,7 +564,7 @@ export default class SpectrumWaterfall {
       this.ctx.fillRect(newCanvasX2, 0, this.canvasWidth - newCanvasX2, this.canvasHeight)
     }
     this.updateGraduation()
-    this.resetRedrawTimeout(500)
+    //this.resetRedrawTimeout(500)
   }
 
   getWaterfallRange () {
@@ -477,7 +577,15 @@ export default class SpectrumWaterfall {
 
   setOffset (offset) {
     this.waterfallColourShift = offset
-    this.resetRedrawTimeout(100)
+    //this.resetRedrawTimeout(100)
+  }
+  setMinOffset (offset) {
+    this.minWaterfall = offset
+    //this.resetRedrawTimeout(100)
+  }
+  setMaxOffset (offset) {
+    this.maxWaterfall = offset
+    //this.resetRedrawTimeout(100)
   }
 
   setAlpha (alpha) {
@@ -490,7 +598,7 @@ export default class SpectrumWaterfall {
 
   setColormap (name) {
     this.setColormapArray(getColormap(name))
-    this.resetRedrawTimeout(50)
+    //this.resetRedrawTimeout(50)
   }
 
   setUserID (userID) {
@@ -509,6 +617,7 @@ export default class SpectrumWaterfall {
   }
 
   resetRedrawTimeout (timeout) {
+    return;
     if (this.updateTimeout !== undefined) {
       clearTimeout(this.updateTimeout)
     }
@@ -549,6 +658,8 @@ export default class SpectrumWaterfall {
   }
 
   mouseMove (e) {
+    // Clear the waterfall queue to remove old data
+    this.waterfallQueue.clear();
     // Figure out how much is dragged
     const mouseMovement = e.movementX
     const frequencyMovement = Math.round(mouseMovement / this.canvasElem.getBoundingClientRect().width * (this.waterfallR - this.waterfallL))

@@ -39,6 +39,22 @@ export default class SpectrumEvent {
         }
       }
     }
+    if ('audio_kbits' in data) {
+      document.getElementById('total_audio_stream').textContent = parseInt(data.audio_kbits) + " kbit/s";
+    }
+    if ('waterfall_kbits' in data) {
+      document.getElementById('total_water_stream').textContent = parseInt(data.waterfall_kbits) + " kbit/s";
+    }
+    if ('waterfall_clients' in data) {
+      if(data.signal_clients > 1)
+      {
+        document.getElementById('total_user_count').textContent = data.signal_clients + " Users";
+      }else
+      {
+        document.getElementById('total_user_count').textContent = data.signal_clients + " User";
+      }
+      
+    }
     this.lastModified = performance.now()
   }
 

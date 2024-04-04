@@ -1,8 +1,10 @@
 import { createDecoder, firdes_kaiser_lowpass } from './lib/wrappers'
 
 import createWindow from 'live-moving-average'
+import { decode as cbor_decode } from 'cbor-x';
+import { encode, decode } from "./modules/ft8.js";
 
-import { MinimalAudioContext, ConvolverNode, IIRFilterNode, GainNode, AudioBuffer, AudioBufferSourceNode } from 'standardized-audio-context'
+import { AudioContext, ConvolverNode, IIRFilterNode, GainNode, AudioBuffer, AudioBufferSourceNode } from 'standardized-audio-context'
 
 export default class SpectrumAudio {
   constructor(endpoint) {
@@ -16,6 +18,11 @@ export default class SpectrumAudio {
 
     this.demodulation = 'USB'
 
+    // Decoders
+    this.accumulator = [];
+    this.decodeFT8 = false;
+    this.farthestDistance = 0;
+
     // Audio controls
     this.mute = false
     this.squelchMute = false
@@ -28,6 +35,11 @@ export default class SpectrumAudio {
       if (this.audioCtx && this.audioCtx.state !== 'running') {
         this.audioCtx.resume()
       }
+      // Remove the element with id startaudio from the DOM
+      const startaudio = document.getElementById('startaudio')
+      if (startaudio) {
+        startaudio.remove()
+      }
       document.documentElement.removeEventListener('mousedown', userGestureFunc)
     }
     document.documentElement.addEventListener('mousedown', userGestureFunc)
@@ -39,6 +51,8 @@ export default class SpectrumAudio {
     this.n1 = 10
     this.var = 10
     this.highThres = 1
+
+    this.initTimer(); // Start the timing mechanism
   }
 
   async init() {
@@ -67,7 +81,7 @@ export default class SpectrumAudio {
   initAudio(settings) {
     const sampleRate = this.audioOutputSps
     try {
-      this.audioCtx = new MinimalAudioContext({
+      this.audioCtx = new AudioContext({
         sampleRate: sampleRate
       })
     } catch {
@@ -91,7 +105,13 @@ export default class SpectrumAudio {
     this.setLowpass(15000)
     this.convolverNode.connect(this.gainNode)
 
-    this.audioInputNode = this.convolverNode
+    this.hpfilter = this.audioCtx.createBiquadFilter();
+    this.hpfilter.type = "highpass";
+    this.hpfilter.frequency.value = 50; 
+    this.hpfilter.connect(this.convolverNode)
+
+
+    this.audioInputNode = this.hpfilter
 
     // this.wbfmStereo = new LiquidDSP.WBFMStereo(this.trueAudioSps)
 
@@ -113,6 +133,11 @@ export default class SpectrumAudio {
     }
     const fir = firdes_kaiser_lowpass(lowpass / sampleRate, 1000 / sampleRate, 0.001)
     this.setFIRFilter(fir)
+  }
+
+  setFT8Decoding(value)
+  {
+    this.decodeFT8 = value;
   }
 
   setFmDeemph(tau) {
@@ -156,6 +181,7 @@ export default class SpectrumAudio {
     this.sps = settings.sps
     this.audioOverlap = settings.fft_overlap / 2
     this.audioMaxSps = settings.audio_max_sps
+    this.grid_locator = settings.grid_locator
 
     this.audioL = settings.defaults.l
     this.audioM = settings.defaults.m
@@ -175,15 +201,8 @@ export default class SpectrumAudio {
 
   socketMessage(event) {
     if (event.data instanceof ArrayBuffer) {
-      /*
-          struct {
-            uint64_t frame_num;
-            uint32_t l, r;
-            double m, pwr;
-          } header;
-      */
-      const header = new DataView(event.data)
-      const receivedPower = header.getFloat64(8 + 4 * 2 + 8, true)
+      const packet = cbor_decode(new Uint8Array(event.data))
+      const receivedPower = packet.pwr
       this.power = 0.5 * this.power + 0.5 * receivedPower || 1
       const dBpower = 20 * Math.log10(Math.sqrt(this.power) / 2)
       this.dBPower = dBpower
@@ -193,8 +212,7 @@ export default class SpectrumAudio {
         this.squelchMute = false
       }
 
-      const packet = new Uint8Array(event.data.slice(4 * 8))
-      this.decode(packet)
+      this.decode(packet.data)
     }
   }
 
@@ -276,14 +294,16 @@ export default class SpectrumAudio {
   }
 
   setAudioRange(audioL, audioM, audioR) {
-    this.audioL = audioL
+    this.audioL = Math.floor(audioL)
     this.audioM = audioM
-    this.audioR = audioR
+    this.audioR = Math.ceil(audioR)
+    this.actualL = audioL
+    this.actualR = audioR
     this.updateAudioParams()
   }
 
   getAudioRange() {
-    return [this.audioL, this.audioM, this.audioR]
+    return [this.actualL, this.audioM, this.actualR]
   }
 
   setAudioOptions(options) {
@@ -337,12 +357,192 @@ export default class SpectrumAudio {
     return this.signalDecoder
   }
 
+
+  // FT8 Start
+
+
+   latLonForGrid(grid) {
+    var lat = 0.0;
+    var lon = 0.0;
+    
+    function lat4(g){
+      return 10 * (g.charCodeAt(1) - 'A'.charCodeAt(0)) + parseInt(g.charAt(3)) - 90;
+    }
+    
+    function lon4(g){
+      return 20 * (g.charCodeAt(0) - 'A'.charCodeAt(0)) + 2 * parseInt(g.charAt(2)) - 180;
+    }
+  
+    if ((grid.length != 4) && (grid.length != 6)) {
+      throw "grid square: grid must be 4 or 6 chars: " + grid;
+    }
+  
+    if (/^[A-X][A-X][0-9][0-9]$/.test(grid)) {
+      // Decode 4-character grid square
+      lat = lat4(grid) + 0.5;
+      lon = lon4(grid) + 1;
+    } else if (/^[A-X][A-X][0-9][0-9][a-x][a-x]$/.test(grid)) {
+      // Decode 6-character grid square
+      lat = lat4(grid) + (1.0 / 60.0) * 2.5 * (grid.charCodeAt(5) - 'a'.charCodeAt(0) + 0.5);
+      lon = lon4(grid) + (1.0 / 60.0) * 5 * (grid.charCodeAt(4) - 'a'.charCodeAt(0) + 0.5);
+    } else {
+      //throw "gridSquareToLatLon: invalid grid: " + grid;
+      return null;
+    }
+  
+    return [lat, lon];
+  };
+
+  gridSquareToLatLon(grid, obj) {
+    var returnLatLonConstructor = (typeof (LatLon) === 'function');
+    var returnObj = (typeof (obj) === 'object');
+  
+    var [lat, lon] = this.latLonForGrid(grid);
+  
+    if (returnLatLonConstructor) {
+      return new LatLon(lat, lon);
+    }
+  
+    if (returnObj) {
+      obj.lat = lat;
+      obj.lon = lon;
+      return obj;
+    }
+  
+    return [lat, lon];
+  }
+
+  initTimer() {
+    // Check every second to adjust the collecting status based on current time
+    setInterval(() => {
+      this.updateCollectionStatus();
+    }, 1000);
+  }
+
+  // For FT8
+  extractGridLocators(message) {
+    // Regular expression for matching grid locators
+    const regex = /[A-R]{2}[0-9]{2}([A-X]{2})?/gi;
+    
+    // Find matches in the provided message
+    const matches = message.match(regex);
+    
+    // Ensure unique matches, as the same locator might appear more than once
+    const uniqueLocators = matches ? Array.from(new Set(matches)) : [];
+    
+    return uniqueLocators;
+  }
+
+
+  calculateDistance(lat1, lon1, lat2, lon2) {
+    function toRad(x) {
+      return x * Math.PI / 180;
+    }
+  
+    var R = 6371; // km
+    var dLat = toRad(lat2-lat1);
+    var dLon = toRad(lon2-lon1);
+    var a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+            Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+            Math.sin(dLon/2) * Math.sin(dLon/2);
+    var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    var d = R * c;
+    return d;
+  }
+  
+  
+
+
+  updateCollectionStatus() {
+    const now = new Date();
+    const seconds = now.getSeconds();
+    const waitSeconds = 15 - (seconds % 15);
+    
+    if (waitSeconds === 15 && !this.isCollecting) {
+      this.startCollection();
+    } else if (waitSeconds === 1 && this.isCollecting) {
+      this.stopCollection();
+    }
+  }
+
+  startCollection() {
+    this.isCollecting = true;
+    this.accumulator = []; // Reset the accumulator
+  }
+
+  async stopCollection() {
+    this.isCollecting = false;
+    if(this.decodeFT8) {
+      const bigFloat32Array = new Float32Array(this.accumulator.flat());
+      let decodedMessages = await decode(bigFloat32Array);
+      const messagesListDiv = document.getElementById('ft8MessagesList');
+  
+      let baseLocation = this.gridSquareToLatLon(this.grid_locator);
+  
+      for (let message of decodedMessages) {
+        let locators = this.extractGridLocators(message.text);
+  
+        if(locators.length > 0) {
+          // Assuming the first locator is the target location
+          let targetLocation = this.gridSquareToLatLon(locators[0]);
+          let distance = this.calculateDistance(baseLocation[0], baseLocation[1], targetLocation[0], targetLocation[1]);
+
+          if (distance > this.farthestDistance) {
+            this.farthestDistance = distance;
+            document.getElementById('farthest-distance').textContent = ` - Farthest Distance: ${this.farthestDistance.toFixed(2)} km`;
+          }
+  
+          const messageDiv = document.createElement('div');
+          messageDiv.classList.add('p-2', 'border-b', 'border-gray-800');
+  
+          let messageContent = `Message: ${message.text}`;
+  
+          messageContent += `, Locators: `;
+  
+          // Add the locator content before appending locator links
+          const locatorsContent = document.createTextNode(messageContent);
+          messageDiv.appendChild(locatorsContent);
+  
+          // Append locators as clickable links
+          locators.forEach((locator, index) => {
+            const locatorLink = document.createElement('a');
+            locatorLink.href = `https://www.levinecentral.com/ham/grid_square.php?&Grid=${locator}&Zoom=13&sm=y`;
+            locatorLink.style = "color:#ffdc00;"
+            locatorLink.textContent = locator;
+            locatorLink.target = "_blank"; // Open in new tab
+            messageDiv.appendChild(document.createTextNode(index > 0 ? ', ' : ''));
+            messageDiv.appendChild(locatorLink);
+          });
+  
+          // Append distance information
+          const distanceText = document.createTextNode(`, Distance: ${distance.toFixed(2)} km`);
+          messageDiv.appendChild(distanceText);
+  
+          messagesListDiv.appendChild(messageDiv);
+        }
+      }
+  
+      setTimeout(() => {
+        messagesListDiv.scrollTop = messagesListDiv.scrollHeight;
+      }, 500);
+    }
+  }
+  
+
+  // FT8 END
+
+
   playAudio(pcmArray) {
     if (this.mute || (this.squelchMute && this.squelch)) {
       return
     }
     if (this.audioCtx.state !== 'running') {
       return
+    }
+
+    if (this.isCollecting && this.decodeFT8) {
+      
+      this.accumulator.push(...pcmArray); // Spread the array to flatten it upon insertion
     }
 
     const curPlayTime = this.playPCM(pcmArray, this.playTime, this.audioOutputSps, 1)
