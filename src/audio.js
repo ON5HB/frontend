@@ -394,9 +394,17 @@ export default class SpectrumAudio {
   };
 
   gridSquareToLatLon(grid, obj) {
+    // Ensure the last two characters of the grid are lowercase
+    const lastTwo = grid.slice(-2);
+    if (lastTwo.toLowerCase() !== lastTwo) {
+      // If the last two are not lowercase, correct the input by lowercasing the last two characters
+      grid = grid.slice(0, -2) + lastTwo.toLowerCase();
+    }
+  
     var returnLatLonConstructor = (typeof (LatLon) === 'function');
     var returnObj = (typeof (obj) === 'object');
   
+    // Assuming latLonForGrid is a method that accepts the corrected grid
     var [lat, lon] = this.latLonForGrid(grid);
   
     if (returnLatLonConstructor) {
