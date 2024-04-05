@@ -432,10 +432,8 @@ export default class SpectrumAudio {
     const waitSeconds = 15 - (seconds % 15);
     
     if (waitSeconds === 15 && !this.isCollecting) {
-      console.log("Start");
       this.startCollection();
     } else if (waitSeconds === 1 && this.isCollecting) {
-      console.log("Stop");
       this.stopCollection();
     }
   }
