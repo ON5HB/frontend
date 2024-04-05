@@ -313,7 +313,7 @@
     audio.setMute(mute)
   }
   function handleVolumeChange () {
-    audio.setGain(Math.pow(10, (volume - 50) / 50 + 3.8))
+    audio.setGain(Math.pow(10, (volume - 50) / 50 + 1.8))
   }
   function handleSquelchChange () {
     squelchEnable = !squelchEnable
