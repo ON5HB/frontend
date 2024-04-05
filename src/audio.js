@@ -365,14 +365,25 @@ export default class SpectrumAudio {
       const l = gridSquare.toUpperCase();
       let lon = ((l.charCodeAt(0) - 'A'.charCodeAt(0)) * 20) - 180;
       let lat = ((l.charCodeAt(1) - 'A'.charCodeAt(0)) * 10) - 90;
-      lon += ((l.charCodeAt(2) - '0'.charCodeAt(0)) * 2);
-      lat += (l.charCodeAt(3) - '0'.charCodeAt(0));
-      lon += ((l.charCodeAt(4) - 'A'.charCodeAt(0)) * (5 / 60));
-      lat += ((l.charCodeAt(5) - 'A'.charCodeAt(0)) * (2.5 / 60));
-      lon += (5 / 120); // center of the square
-      lat += (1.25 / 120); // center of the square
+
+      if (l.length >= 4) {
+          lon += ((l.charCodeAt(2) - '0'.charCodeAt(0)) * 2);
+          lat += (l.charCodeAt(3) - '0'.charCodeAt(0));
+      }
+      
+      if (l.length == 6) {
+          lon += ((l.charCodeAt(4) - 'A'.charCodeAt(0)) * (5 / 60));
+          lat += ((l.charCodeAt(5) - 'A'.charCodeAt(0)) * (2.5 / 60));
+          lon += (5 / 120); // center of the square for 6-char grid
+          lat += (1.25 / 120); // center of the square for 6-char grid
+      } else if (l.length == 4) {
+          lon += 1; // center of the square for 4-char grid
+          lat += 0.5; // center of the square for 4-char grid
+      }
+
       return [lat, lon];
   }
+
 
   initTimer() {
     // Check every second to adjust the collecting status based on current time
@@ -421,8 +432,10 @@ export default class SpectrumAudio {
     const waitSeconds = 15 - (seconds % 15);
     
     if (waitSeconds === 15 && !this.isCollecting) {
+      console.log("Start");
       this.startCollection();
     } else if (waitSeconds === 1 && this.isCollecting) {
+      console.log("Stop");
       this.stopCollection();
     }
   }
