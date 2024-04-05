@@ -361,63 +361,17 @@ export default class SpectrumAudio {
   // FT8 Start
 
 
-   latLonForGrid(grid) {
-    var lat = 0.0;
-    var lon = 0.0;
-    
-    function lat4(g){
-      return 10 * (g.charCodeAt(1) - 'A'.charCodeAt(0)) + parseInt(g.charAt(3)) - 90;
-    }
-    
-    function lon4(g){
-      return 20 * (g.charCodeAt(0) - 'A'.charCodeAt(0)) + 2 * parseInt(g.charAt(2)) - 180;
-    }
-  
-    if ((grid.length != 4) && (grid.length != 6)) {
-      throw "grid square: grid must be 4 or 6 chars: " + grid;
-    }
-  
-    if (/^[A-X][A-X][0-9][0-9]$/.test(grid)) {
-      // Decode 4-character grid square
-      lat = lat4(grid) + 0.5;
-      lon = lon4(grid) + 1;
-    } else if (/^[A-X][A-X][0-9][0-9][a-x][a-x]$/.test(grid)) {
-      // Decode 6-character grid square
-      lat = lat4(grid) + (1.0 / 60.0) * 2.5 * (grid.charCodeAt(5) - 'a'.charCodeAt(0) + 0.5);
-      lon = lon4(grid) + (1.0 / 60.0) * 5 * (grid.charCodeAt(4) - 'a'.charCodeAt(0) + 0.5);
-    } else {
-      //throw "gridSquareToLatLon: invalid grid: " + grid;
-      return null;
-    }
-  
-    return [lat, lon];
-  };
-
-  gridSquareToLatLon(grid, obj) {
-    // Ensure the last two characters of the grid are lowercase
-    const lastTwo = grid.slice(-2);
-    if (lastTwo.toLowerCase() !== lastTwo) {
-      // If the last two are not lowercase, correct the input by lowercasing the last two characters
-      grid = grid.slice(0, -2) + lastTwo.toLowerCase();
-    }
-  
-    var returnLatLonConstructor = (typeof (LatLon) === 'function');
-    var returnObj = (typeof (obj) === 'object');
-  
-    // Assuming latLonForGrid is a method that accepts the corrected grid
-    var [lat, lon] = this.latLonForGrid(grid);
-  
-    if (returnLatLonConstructor) {
-      return new LatLon(lat, lon);
-    }
-  
-    if (returnObj) {
-      obj.lat = lat;
-      obj.lon = lon;
-      return obj;
-    }
-  
-    return [lat, lon];
+  gridSquareToLatLong(gridSquare) {
+      const l = gridSquare.toUpperCase();
+      let lon = ((l.charCodeAt(0) - 'A'.charCodeAt(0)) * 20) - 180;
+      let lat = ((l.charCodeAt(1) - 'A'.charCodeAt(0)) * 10) - 90;
+      lon += ((l.charCodeAt(2) - '0'.charCodeAt(0)) * 2);
+      lat += (l.charCodeAt(3) - '0'.charCodeAt(0));
+      lon += ((l.charCodeAt(4) - 'A'.charCodeAt(0)) * (5 / 60));
+      lat += ((l.charCodeAt(5) - 'A'.charCodeAt(0)) * (2.5 / 60));
+      lon += (5 / 120); // center of the square
+      lat += (1.25 / 120); // center of the square
+      return [lat, lon];
   }
 
   initTimer() {
@@ -485,14 +439,14 @@ export default class SpectrumAudio {
       let decodedMessages = await decode(bigFloat32Array);
       const messagesListDiv = document.getElementById('ft8MessagesList');
   
-      let baseLocation = this.gridSquareToLatLon(this.grid_locator);
+      let baseLocation = this.gridSquareToLatLong(this.grid_locator);
   
       for (let message of decodedMessages) {
         let locators = this.extractGridLocators(message.text);
   
         if(locators.length > 0) {
           // Assuming the first locator is the target location
-          let targetLocation = this.gridSquareToLatLon(locators[0]);
+          let targetLocation = this.gridSquareToLatLong(locators[0]);
           let distance = this.calculateDistance(baseLocation[0], baseLocation[1], targetLocation[0], targetLocation[1]);
 
           if (distance > this.farthestDistance) {
