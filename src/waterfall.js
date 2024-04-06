@@ -12,7 +12,7 @@ export default class SpectrumWaterfall {
     this.spectrum = false
     this.waterfall = false
 
-    this.waterfallQueue = new Denque(10)
+    this.waterfallQueue = new Denque(1)
     this.drawnWaterfallQueue = new Denque(4096)
     this.lagTime = 0
     this.spectrumAlpha = 0.5
