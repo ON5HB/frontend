@@ -362,6 +362,7 @@
   }
   function handleNBChange () {
     NBEnabled = !NBEnabled;
+    audio.nb = NBEnabled;
     audio.decoder.set_nb(NBEnabled)
   }
   function handleANChange () {
@@ -375,8 +376,8 @@
   let updateInterval
   let lastUpdated = 0
   function updateTick () {
-    power = audio.getPowerDb() / 150 * 100 
-    powerPeak = accumulator(power) / 150 * 100 
+    power = audio.getPowerDb() / 150 * 100 + audio.smeter_offset
+    powerPeak = accumulator(power) / 150 * 100 + audio.smeter_offset
 
     setSignalStrength(power);
 
