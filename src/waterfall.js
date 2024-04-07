@@ -12,7 +12,7 @@ export default class SpectrumWaterfall {
     this.spectrum = false
     this.waterfall = false
 
-    this.waterfallQueue = new Denque(1)
+    this.waterfallQueue = new Denque(10)
     this.drawnWaterfallQueue = new Denque(4096)
     this.lagTime = 0
     this.spectrumAlpha = 0.5
@@ -63,7 +63,7 @@ export default class SpectrumWaterfall {
   initCanvas (settings) {
     this.canvasElem = settings.canvasElem
     this.ctx = this.canvasElem.getContext('2d')
-    this.ctx.imageSmoothingEnabled = false
+    this.ctx.imageSmoothingEnabled = true
     this.canvasWidth = this.canvasElem.width
     this.canvasHeight = this.canvasElem.height
     this.backgroundColor = window.getComputedStyle(document.body, null).getPropertyValue('background-color')
@@ -95,11 +95,13 @@ export default class SpectrumWaterfall {
       resizeCanvas.width = this.canvasElem.width
       resizeCanvas.height = this.canvasElem.height
       let resizeCtx = resizeCanvas.getContext('2d')
+      resizeCtx.imageSmoothingEnabled = true;
       resizeCtx.drawImage(this.canvasElem, 0, 0)
 
       this.setCanvasWidth()
       this.curLine = Math.ceil(this.curLine * this.canvasElem.height / resizeCanvas.height)
       // Copy resizeCanvas to new canvas with scaling
+      this.ctx.imageSmoothingEnabled = true;
       this.ctx.drawImage(resizeCanvas, 0, 0, resizeCanvas.width, resizeCanvas.height, 0, 0, this.canvasElem.width, this.canvasElem.height)
       this.updateGraduation()
       //this.redrawWaterfall()
@@ -183,10 +185,7 @@ export default class SpectrumWaterfall {
       
       console.log('Waterfall FPS: ' + waterfallFPS)
 
-      this.waterfallDrawInterval = setInterval(() => {
-        //requestAnimationFrame(this.drawSpectrogram.bind(this))
-        this.drawSpectrogram()
-      }, 1000 / waterfallFPS)
+      requestAnimationFrame(this.drawSpectrogram.bind(this));
 
       this.waterfallL = 0
       this.waterfallR = this.waterfallMaxSize
@@ -284,6 +283,7 @@ export default class SpectrumWaterfall {
   drawSpectrogram () {
     
     if (this.waterfallQueue.length === 0) {
+      requestAnimationFrame(this.drawSpectrogram.bind(this));
       return
     }
 
@@ -303,6 +303,7 @@ export default class SpectrumWaterfall {
     if (this.drawnWaterfallQueue.length > this.canvasHeight) {
       this.drawnWaterfallQueue.pop()
     }
+    requestAnimationFrame(this.drawSpectrogram.bind(this));
   }
 
   async redrawWaterfall () {
@@ -457,7 +458,7 @@ export default class SpectrumWaterfall {
     }
 
     // Define the height of the band marker rectangle
-    const bandHeight = 12; // Example height, adjust as needed
+    const bandHeight = 12; 
 
     // Loop through each band and draw it
     this.bands.forEach(band => {
@@ -529,6 +530,7 @@ export default class SpectrumWaterfall {
     if (waterfallL >= waterfallR) {
       return
     }
+    
     const width = waterfallR - waterfallL
     // If there is out of bounds, fix the bounds
     if (waterfallL < 0 && waterfallR > this.waterfallMaxSize) {
@@ -555,6 +557,8 @@ export default class SpectrumWaterfall {
     const newCanvasX2 = this.idxToCanvasX(prevR)
     const newCanvasWidth = newCanvasX2 - newCanvasX1
 
+    
+
     this.ctx.drawImage(this.canvasElem, 0, 0, this.canvasWidth, this.canvasHeight, newCanvasX1, 0, newCanvasWidth, this.canvasHeight)
 
     // Special case for zoom out or panning, blank the borders
@@ -564,6 +568,7 @@ export default class SpectrumWaterfall {
       this.ctx.fillRect(newCanvasX2, 0, this.canvasWidth - newCanvasX2, this.canvasHeight)
     }
     this.updateGraduation()
+    this.drawSpectrogram();
     //this.resetRedrawTimeout(500)
   }
 
@@ -659,14 +664,13 @@ export default class SpectrumWaterfall {
 
   mouseMove (e) {
     // Clear the waterfall queue to remove old data
-    this.waterfallQueue.clear();
     // Figure out how much is dragged
     const mouseMovement = e.movementX
     const frequencyMovement = Math.round(mouseMovement / this.canvasElem.getBoundingClientRect().width * (this.waterfallR - this.waterfallL))
 
-    if (!frequencyMovement) {
-      return
-    }
+    //if (!frequencyMovement) {
+    //  return
+    //}
     const newL = this.waterfallL - frequencyMovement
     const newR = this.waterfallR - frequencyMovement
     this.setWaterfallRange(newL, newR)
