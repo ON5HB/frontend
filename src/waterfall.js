@@ -9,6 +9,11 @@ export default class SpectrumWaterfall {
   constructor (endpoint, settings) {
     this.endpoint = endpoint
 
+    this.autoAdjust = false;
+    this.adjustmentBuffer = []; // Buffer to accumulate data for adjustment
+    this.bufferSize = 50; // Number of data points to accumulate before adjusting
+    this.dampeningFactor = 0.1; // Factor to smooth adjustments (0 for instant, 1 for no change)
+
     this.spectrum = false
     this.waterfall = false
 
@@ -229,6 +234,26 @@ export default class SpectrumWaterfall {
     }
   }
 
+  accumulateAdjustmentData(waterfallArray) {
+    // Add the current data to the buffer
+    this.adjustmentBuffer.push(...waterfallArray);
+    // Check if the buffer is full
+    if (this.adjustmentBuffer.length >= this.bufferSize) {
+      // Adjust limits based on the buffered data
+      this.adjustWaterfallLimits(this.adjustmentBuffer);
+      // Clear the buffer for next accumulation
+      this.adjustmentBuffer = [];
+    }
+  }
+
+  adjustWaterfallLimits(bufferedData) {
+    const minValue = Math.min(...bufferedData);
+    const maxValue = Math.max(...bufferedData) - 40;
+    // Apply dampening factor to smooth adjustments
+    this.minWaterfall += (minValue - this.minWaterfall) * this.dampeningFactor;
+    this.maxWaterfall += (maxValue - this.maxWaterfall) * this.dampeningFactor;
+  }
+
   //transformValue (x) {
   //  return Math.min(Math.max(x + this.waterfallColourShift, 0), 255)
   //}
@@ -288,8 +313,14 @@ export default class SpectrumWaterfall {
     }
 
     const {data: waterfallArray, l: curL, r: curR} = this.waterfallQueue.pop()
+
+
     
     const [arr, pxL, pxR] = this.calculateOffsets(waterfallArray, curL, curR)
+
+    if (this.autoAdjust) {
+      this.accumulateAdjustmentData(arr);
+    }
     
     if (this.waterfall) {
       this.drawWaterfall(arr, pxL, pxR, curL, curR)

@@ -41,7 +41,7 @@
   }
 
   let userId; // Global variable to store the user's unique ID
-
+  let autoAdjust = false;
   
 
 
@@ -131,6 +131,11 @@
   }
   function handleMaxMove () {
     waterfall.setMaxOffset(max_waterfall)
+  }
+
+  function handleAutoAdjust (value) {
+    autoAdjust = value;
+    waterfall.autoAdjust = autoAdjust;
   }
 
   // Audio demodulation selection
@@ -1101,6 +1106,17 @@
                       {/each}
                   </select>
               </div>
+
+              
+              <!-- Automatic Waterfall Adjustment -->
+              <div class="flex items-center justify-between mt-4">
+                <label for="autoAdjust" class="block text-sm font-medium text-white">Auto Adjust:</label>
+                <input type="checkbox" id="autoAdjust"
+                      bind:checked={autoAdjust} on:change={() => handleAutoAdjust(autoAdjust)}
+                      class="ml-4 h-4 w-4 text-blue-600 border-gray-300 rounded">
+              </div>
+
+
 
               <!-- Colormap Preview -->
               <div class="flex items-center justify-between mt-4">
