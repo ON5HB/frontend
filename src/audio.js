@@ -22,6 +22,7 @@ export default class SpectrumAudio {
     this.accumulator = [];
     this.decodeFT8 = false;
     this.farthestDistance = 0;
+    this.nb = false;
 
     // Audio controls
     this.mute = false
@@ -102,13 +103,16 @@ export default class SpectrumAudio {
     this.gainNode.connect(this.audioCtx.destination)
 
     this.convolverNode = new ConvolverNode(this.audioCtx)
-    this.setLowpass(15000)
-    this.convolverNode.connect(this.gainNode)
+    this.setLowpass(3000)
 
     this.hpfilter = this.audioCtx.createBiquadFilter();
     this.hpfilter.type = "highpass";
-    this.hpfilter.frequency.value = 50; 
-    this.hpfilter.connect(this.convolverNode)
+    this.hpfilter.frequency.value = 200; 
+    this.hpfilter.connect(this.gainNode)
+
+    this.convolverNode.connect(this.hpfilter)
+
+
 
 
     this.audioInputNode = this.hpfilter
@@ -182,6 +186,7 @@ export default class SpectrumAudio {
     this.audioOverlap = settings.fft_overlap / 2
     this.audioMaxSps = settings.audio_max_sps
     this.grid_locator = settings.grid_locator
+    this.smeter_offset = settings.smeter_offset
 
     this.audioL = settings.defaults.l
     this.audioM = settings.defaults.m
@@ -286,6 +291,19 @@ export default class SpectrumAudio {
   }
 
   setAudioDemodulation(demodulation) {
+    if(demodulation == "USB" || demodulation == "LSB")
+    {
+      this.setLowpass(3000)
+      this.hpfilter.frequency.value = 100; 
+    }else if(demodulation != "CW-U" && demodulation != "CW-L")
+    {
+      this.setLowpass(15000)
+      this.hpfilter.frequency.value = 25; 
+    }else
+    {
+      this.setLowpass(1000)
+      this.hpfilter.frequency.value = 100; 
+    }
     this.demodulation = demodulation
     this.audioSocket.send(JSON.stringify({
       cmd: 'demodulation',
@@ -432,8 +450,10 @@ export default class SpectrumAudio {
     const waitSeconds = 15 - (seconds % 15);
     
     if (waitSeconds === 15 && !this.isCollecting) {
+      console.log("Start");
       this.startCollection();
     } else if (waitSeconds === 1 && this.isCollecting) {
+      console.log("Stop");
       this.stopCollection();
     }
   }
@@ -530,22 +550,35 @@ export default class SpectrumAudio {
     }
   }
 
+
+
+
+  
+
   playPCM(buffer, playTime, sampleRate, scale) {
     // Wait for the audio to be initialised
     if (!this.audioInputNode) {
-      return
+      return;
     }
-    const source = new AudioBufferSourceNode(this.audioCtx)
+    const source = new AudioBufferSourceNode(this.audioCtx);
+  
+    const audioBuffer = new AudioBuffer({ length: buffer.length, numberOfChannels: 1, sampleRate: this.audioOutputSps });
 
-    const audioBuffer = new AudioBuffer({ length: buffer.length, numberOfChannels: 1, sampleRate: this.audioOutputSps })
+
     audioBuffer.copyToChannel(buffer, 0, 0)
+    
+    
 
-    source.buffer = audioBuffer
-    source.start(playTime)
-    this.playTime += audioBuffer.duration
-
-    source.connect(this.audioInputNode)
-
-    return audioBuffer.duration
+  
+    
+  
+    source.buffer = audioBuffer;
+    source.start(playTime);
+    this.playTime += audioBuffer.duration;
+  
+    source.connect(this.audioInputNode);
+  
+    return audioBuffer.duration;
   }
+  
 }
