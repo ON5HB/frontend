@@ -5,7 +5,7 @@ import { decode as cbor_decode } from 'cbor-x';
 import { encode, decode } from "./modules/ft8.js";
 
 import { AudioContext, ConvolverNode, IIRFilterNode, GainNode, AudioBuffer, AudioBufferSourceNode } from 'standardized-audio-context'
-
+import { BiquadFilterNode } from 'standardized-audio-context';
 export default class SpectrumAudio {
   constructor(endpoint) {
     this.endpoint = endpoint
@@ -98,24 +98,30 @@ export default class SpectrumAudio {
     
     // inputNode -> fmDeemphNode -> convolverNode -> gainNode -> audioCtx.destination
 
+    this.lowPassFilter = new BiquadFilterNode(this.audioCtx)
+    // Set filter type to lowpass
+    this.lowPassFilter.type = 'lowshelf';
+    this.lowPassFilter.frequency.value = 200;
+    this.lowPassFilter.Q.value = 1;
+    this.lowPassFilter.gain.value = 20;
+    this.lowPassFilter.connect(this.audioCtx.destination)
+
     this.gainNode = new GainNode(this.audioCtx)
     this.setGain(10)
-    this.gainNode.connect(this.audioCtx.destination)
+    this.gainNode.connect(this.lowPassFilter)
 
     this.convolverNode = new ConvolverNode(this.audioCtx)
-    this.setLowpass(3000)
+    this.setLowpass(15000)
+    this.convolverNode.connect(this.gainNode)
 
-    this.hpfilter = this.audioCtx.createBiquadFilter();
-    this.hpfilter.type = "highpass";
-    this.hpfilter.frequency.value = 200; 
-    this.hpfilter.connect(this.gainNode)
 
-    this.convolverNode.connect(this.hpfilter)
+    
 
 
 
 
-    this.audioInputNode = this.hpfilter
+
+    this.audioInputNode = this.convolverNode
 
     // this.wbfmStereo = new LiquidDSP.WBFMStereo(this.trueAudioSps)
 
@@ -291,19 +297,7 @@ export default class SpectrumAudio {
   }
 
   setAudioDemodulation(demodulation) {
-    if(demodulation == "USB" || demodulation == "LSB")
-    {
-      this.setLowpass(3000)
-      this.hpfilter.frequency.value = 100; 
-    }else if(demodulation != "CW-U" && demodulation != "CW-L")
-    {
-      this.setLowpass(15000)
-      this.hpfilter.frequency.value = 25; 
-    }else
-    {
-      this.setLowpass(1000)
-      this.hpfilter.frequency.value = 100; 
-    }
+
     this.demodulation = demodulation
     this.audioSocket.send(JSON.stringify({
       cmd: 'demodulation',
