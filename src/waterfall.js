@@ -1,4 +1,3 @@
-
 import getColormap, { computeColormapArray } from './lib/colormaps.js'
 import { JitterBuffer, createWaterfallDecoder } from './lib/wrappers.js'
 import Denque from 'denque'
@@ -314,12 +313,6 @@ export default class SpectrumWaterfall {
         return;
       }
 
-      if (this.isRendering) {
-        return;
-      }
-
-      this.isRendering = true;
-
       const {data: waterfallArray, l: curL, r: curR} = this.waterfallQueue.pop();
 
       const [arr, pxL, pxR] = this.calculateOffsets(waterfallArray, curL, curR);
@@ -344,9 +337,6 @@ export default class SpectrumWaterfall {
 
       // Draw the temporary canvas onto the main canvas
       this.ctx.drawImage(tempCanvas, 0, 0);
-
-      // Set isrendering to false
-      this.isRendering = false;
 
       // Continue the animation loop
       requestAnimationFrame(this.drawSpectrogram.bind(this));
@@ -391,12 +381,15 @@ export default class SpectrumWaterfall {
     this.ctx.drawImage(this.tempCanvasElem, 0, 0, arr.length, 1, pxL, line, pxR - pxL, 1);
   }
   
-  drawWaterfall(arr, pxL, pxR, curL, curR, ctx) {
+  drawWaterfall(arr, pxL, pxR, curL, curR) {
     // Copy the current canvas content and shift it down by one pixel
-    ctx.drawImage(this.canvasElem, 0, 0, this.canvasWidth, this.canvasHeight - 1, 0, 1, this.canvasWidth, this.canvasHeight - 1);
+    const imageData = this.ctx.getImageData(0, 0, this.canvasWidth, this.canvasHeight - 1);
+    this.ctx.putImageData(imageData, 0, 1);
   
     // The current line is now effectively shifted down by one, so draw the new line at the top
-    this.drawWaterfallLine(arr, pxL, pxR, 0, ctx);
+    this.drawWaterfallLine(arr, pxL, pxR, 0);
+  
+    // No need for CSS transform or tracking curLine for shifting content
   }
   
   drawSpectrum (arr, pxL, pxR, curL, curR) {
@@ -731,4 +724,4 @@ export default class SpectrumWaterfall {
     this.spectrumFreq = undefined
     this.spectrumX = undefined
   }
-}
+} 
