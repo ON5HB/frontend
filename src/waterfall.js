@@ -69,6 +69,7 @@ export default class SpectrumWaterfall {
     this.canvasElem = settings.canvasElem
     this.ctx = this.canvasElem.getContext('2d')
     this.ctx.imageSmoothingEnabled = true
+    this.ctx.imageSmoothingQuality = "high"
     this.canvasWidth = this.canvasElem.width
     this.canvasHeight = this.canvasElem.height
     this.backgroundColor = window.getComputedStyle(document.body, null).getPropertyValue('background-color')
@@ -101,12 +102,14 @@ export default class SpectrumWaterfall {
       resizeCanvas.height = this.canvasElem.height
       let resizeCtx = resizeCanvas.getContext('2d')
       resizeCtx.imageSmoothingEnabled = true;
+      resizeCtx.imageSmoothingQuality = "high"
       resizeCtx.drawImage(this.canvasElem, 0, 0)
 
       this.setCanvasWidth()
       this.curLine = Math.ceil(this.curLine * this.canvasElem.height / resizeCanvas.height)
       // Copy resizeCanvas to new canvas with scaling
       this.ctx.imageSmoothingEnabled = true;
+      this.ctx.imageSmoothingQuality = "high"
       this.ctx.drawImage(resizeCanvas, 0, 0, resizeCanvas.width, resizeCanvas.height, 0, 0, this.canvasElem.width, this.canvasElem.height)
       this.updateGraduation()
       //this.redrawWaterfall()
@@ -144,7 +147,7 @@ export default class SpectrumWaterfall {
   }
 
   setCanvasWidth() {
-    let canvasWidth = window.screen.width * window.devicePixelRatio
+    let canvasWidth = window.innerWidth * window.devicePixelRatio
 
     this.canvasElem.width = canvasWidth
 
@@ -179,7 +182,7 @@ export default class SpectrumWaterfall {
       this.overlap = settings.overlap
 
       this.setCanvasWidth()
-      this.tempCanvasElem.width = settings.waterfall_size * 2
+      this.tempCanvasElem.width = settings.waterfall_size 
 
       this.ctx.fillStyle = this.backgroundColor
       this.ctx.fillRect(0, 0, this.canvasElem.width, this.canvasElem.height)
@@ -306,36 +309,49 @@ export default class SpectrumWaterfall {
   }
 
   drawSpectrogram () {
-    
-    if (this.waterfallQueue.length === 0) {
+      if (this.waterfallQueue.length === 0) {
+        requestAnimationFrame(this.drawSpectrogram.bind(this));
+        return;
+      }
+
+      if (this.isRendering) {
+        return;
+      }
+
+      this.isRendering = true;
+
+      const {data: waterfallArray, l: curL, r: curR} = this.waterfallQueue.pop();
+
+      const [arr, pxL, pxR] = this.calculateOffsets(waterfallArray, curL, curR);
+
+      if (this.autoAdjust) {
+        this.accumulateAdjustmentData(arr);
+      }
+      
+      // Create a temporary canvas to draw onto
+      const tempCanvas = document.createElement('canvas');
+      tempCanvas.width = this.canvasWidth;
+      tempCanvas.height = this.canvasHeight;
+      const tempCtx = tempCanvas.getContext('2d');
+
+      // Draw onto the temporary canvas
+      if (this.waterfall) {
+        this.drawWaterfall(arr, pxL, pxR, curL, curR, tempCtx);
+      }
+      if (this.spectrum) {
+        this.drawSpectrum(arr, pxL, pxR, curL, curR, tempCtx);
+      }
+
+      // Draw the temporary canvas onto the main canvas
+      this.ctx.drawImage(tempCanvas, 0, 0);
+
+      // Set isrendering to false
+      this.isRendering = false;
+
+      // Continue the animation loop
       requestAnimationFrame(this.drawSpectrogram.bind(this));
-      return
-    }
-
-    const {data: waterfallArray, l: curL, r: curR} = this.waterfallQueue.pop()
-
-
-    
-    const [arr, pxL, pxR] = this.calculateOffsets(waterfallArray, curL, curR)
-
-    if (this.autoAdjust) {
-      this.accumulateAdjustmentData(arr);
-    }
-    
-    if (this.waterfall) {
-      this.drawWaterfall(arr, pxL, pxR, curL, curR)
-    }
-    if (this.spectrum) {
-      this.drawSpectrum(arr, pxL, pxR, curL, curR)
-    }
-
-    this.drawnWaterfallQueue.unshift([waterfallArray, curL, curR])
-
-    if (this.drawnWaterfallQueue.length > this.canvasHeight) {
-      this.drawnWaterfallQueue.pop()
-    }
-    requestAnimationFrame(this.drawSpectrogram.bind(this));
   }
+
 
   async redrawWaterfall () {
     return;
@@ -375,15 +391,12 @@ export default class SpectrumWaterfall {
     this.ctx.drawImage(this.tempCanvasElem, 0, 0, arr.length, 1, pxL, line, pxR - pxL, 1);
   }
   
-  drawWaterfall(arr, pxL, pxR, curL, curR) {
+  drawWaterfall(arr, pxL, pxR, curL, curR, ctx) {
     // Copy the current canvas content and shift it down by one pixel
-    const imageData = this.ctx.getImageData(0, 0, this.canvasWidth, this.canvasHeight - 1);
-    this.ctx.putImageData(imageData, 0, 1);
+    ctx.drawImage(this.canvasElem, 0, 0, this.canvasWidth, this.canvasHeight - 1, 0, 1, this.canvasWidth, this.canvasHeight - 1);
   
     // The current line is now effectively shifted down by one, so draw the new line at the top
-    this.drawWaterfallLine(arr, pxL, pxR, 0);
-  
-    // No need for CSS transform or tracking curLine for shifting content
+    this.drawWaterfallLine(arr, pxL, pxR, 0, ctx);
   }
   
   drawSpectrum (arr, pxL, pxR, curL, curR) {
