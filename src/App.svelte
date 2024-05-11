@@ -780,7 +780,7 @@
               </label>
               <div class="w-1/6 text-white text-xs text-center m-auto">{volume}%</div>
               <div class="px-0 w-2/3 align-middle">
-                <input type="range" bind:value={volume} on:mousemove={handleVolumeChange} on:touchmove={handleVolumeChange} disabled={mute} min="0" max="100" step="0.1" class="disabled: cursor-not-allowed w-full align-middle appearance-none h-1 bg-gray-400 rounded outline-none">
+                <input type="range" bind:value={volume} on:input={handleVolumeChange} disabled={mute} min="0" max="100" step="0.1" class="disabled: cursor-not-allowed w-full align-middle appearance-none h-1 bg-gray-400 rounded outline-none">
               </div>
             </div>
             <div class="flex">
@@ -984,7 +984,7 @@
                         on:click="{(handleMuteChange)}">
                   {mute ? '🔇' : '🔊'}
                 </button>
-                <input type="range" bind:value={volume} on:mousemove="{handleVolumeChange}"
+                <input type="range" bind:value={volume} on:input={handleVolumeChange} 
                       class="range range-primary" disabled="{mute}" min="0" max="100" step="1">
                 <span class="text-white min-w-16 text-center">{volume}%</span> <!-- Adjusted -->
               </div>
