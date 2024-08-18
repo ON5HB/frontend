@@ -67,8 +67,8 @@ export default class SpectrumWaterfall {
   initCanvas (settings) {
     this.canvasElem = settings.canvasElem
     this.ctx = this.canvasElem.getContext('2d')
-    this.ctx.imageSmoothingEnabled = true
-    this.ctx.imageSmoothingQuality = "high"
+    this.ctx.imageSmoothingEnabled = false
+    //this.ctx.imageSmoothingQuality = "high"
     this.canvasWidth = this.canvasElem.width
     this.canvasHeight = this.canvasElem.height
     this.backgroundColor = window.getComputedStyle(document.body, null).getPropertyValue('background-color')
@@ -100,15 +100,15 @@ export default class SpectrumWaterfall {
       resizeCanvas.width = this.canvasElem.width
       resizeCanvas.height = this.canvasElem.height
       let resizeCtx = resizeCanvas.getContext('2d')
-      resizeCtx.imageSmoothingEnabled = true;
-      resizeCtx.imageSmoothingQuality = "high"
+      resizeCtx.imageSmoothingEnabled = false;
+      //resizeCtx.imageSmoothingQuality = "high"
       resizeCtx.drawImage(this.canvasElem, 0, 0)
 
       this.setCanvasWidth()
       this.curLine = Math.ceil(this.curLine * this.canvasElem.height / resizeCanvas.height)
       // Copy resizeCanvas to new canvas with scaling
-      this.ctx.imageSmoothingEnabled = true;
-      this.ctx.imageSmoothingQuality = "high"
+      this.ctx.imageSmoothingEnabled = false;
+      //this.ctx.imageSmoothingQuality = "high"
       this.ctx.drawImage(resizeCanvas, 0, 0, resizeCanvas.width, resizeCanvas.height, 0, 0, this.canvasElem.width, this.canvasElem.height)
       this.updateGraduation()
       //this.redrawWaterfall()
@@ -344,7 +344,7 @@ export default class SpectrumWaterfall {
 
 
   async redrawWaterfall () {
-    return;
+    
     const toDraw = this.drawnWaterfallQueue.toArray()
     const curLineReset = this.lineResets
     const curLine = this.curLine
@@ -367,30 +367,44 @@ export default class SpectrumWaterfall {
   }
 
   drawWaterfallLine(arr, pxL, pxR, line) {
-    // Draw the new line
-    const colorarr = this.ctx.createImageData(arr.length, 1);
+    // Ensure integer pixel values
+    pxL = Math.floor(pxL);
+    pxR = Math.ceil(pxR);
+    line = Math.floor(line);
   
-    for (let i = 0; i < arr.length; i++) {
+    const width = pxR - pxL;
+    
+    // Create an ImageData object with the exact width we need
+    const colorarr = this.ctx.createImageData(width, 1);
+  
+    for (let i = 0; i < width; i++) {
+      // Map the pixel index to the corresponding array index
+      const arrIndex = Math.floor(i * arr.length / width);
+      const colorIndex = arr[arrIndex];
       
-
-      colorarr.data.set(this.colormap[arr[i]], i * 4);
+      // Set the color for this pixel
+      const pixelStart = i * 4;
+      colorarr.data.set(this.colormap[colorIndex], pixelStart);
     }
   
-    this.tempCtx.putImageData(colorarr, 0, 0);
-    // Resize the line into the correct width
-    this.ctx.drawImage(this.tempCanvasElem, 0, 0, arr.length, 1, pxL, line, pxR - pxL, 1);
+    // Draw directly to the main canvas
+    this.ctx.putImageData(colorarr, pxL, line);
   }
   
   drawWaterfall(arr, pxL, pxR, curL, curR) {
+    // Ensure integer pixel values
+    pxL = Math.floor(pxL);
+    pxR = Math.ceil(pxR);
+  
     // Copy the current canvas content and shift it down by one pixel
     const imageData = this.ctx.getImageData(0, 0, this.canvasWidth, this.canvasHeight - 1);
     this.ctx.putImageData(imageData, 0, 1);
   
-    // The current line is now effectively shifted down by one, so draw the new line at the top
+    // Draw the new line at the top
     this.drawWaterfallLine(arr, pxL, pxR, 0);
-  
-    // No need for CSS transform or tracking curLine for shifting content
   }
+  
+
   
   drawSpectrum (arr, pxL, pxR, curL, curR) {
     if (curL !== this.spectrumFiltered[0][0] || curR !== this.spectrumFiltered[0][1]) {
@@ -558,55 +572,119 @@ export default class SpectrumWaterfall {
         this.graduationCtx.moveTo(midOffset, 0)
         this.graduationCtx.lineTo(midOffset - 2, 5)
         this.graduationCtx.stroke()
-        // this.graduationCtx.arc(midOffset, 2, 2, 0, 2 * Math.PI, 0)
-        // this.graduationCtx.fill()
       })
   }
 
-  setWaterfallRange (waterfallL, waterfallR) {
-    if (waterfallL >= waterfallR) {
-      return
+  applyBlur(imageData, width, height, radius) {
+    const pixels = imageData.data;
+    const tempPixels = new Uint8ClampedArray(pixels);
+    
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        let r = 0, g = 0, b = 0, a = 0, count = 0;
+        
+        for (let dy = -radius; dy <= radius; dy++) {
+          for (let dx = -radius; dx <= radius; dx++) {
+            const px = x + dx;
+            const py = y + dy;
+            if (px >= 0 && px < width && py >= 0 && py < height) {
+              const i = (py * width + px) * 4;
+              r += tempPixels[i];
+              g += tempPixels[i + 1];
+              b += tempPixels[i + 2];
+              a += tempPixels[i + 3];
+              count++;
+            }
+          }
+        }
+        
+        const i = (y * width + x) * 4;
+        pixels[i] = r / count;
+        pixels[i + 1] = g / count;
+        pixels[i + 2] = b / count;
+        pixels[i + 3] = a / count;
+      }
     }
     
-    const width = waterfallR - waterfallL
+    return imageData;
+  }
+
+  setWaterfallRange(waterfallL, waterfallR) {
+    if (waterfallL >= waterfallR) {
+      return;
+    }
+    
+    const width = waterfallR - waterfallL;
     // If there is out of bounds, fix the bounds
     if (waterfallL < 0 && waterfallR > this.waterfallMaxSize) {
-      waterfallL = 0
-      waterfallR = this.waterfallMaxSize
+      waterfallL = 0;
+      waterfallR = this.waterfallMaxSize;
     } else if (waterfallL < 0) {
-      waterfallL = 0
-      waterfallR = width
+      waterfallL = 0;
+      waterfallR = width;
     } else if (waterfallR > this.waterfallMaxSize) {
-      waterfallR = this.waterfallMaxSize
-      waterfallL = waterfallR - width
+      waterfallR = this.waterfallMaxSize;
+      waterfallL = waterfallR - width;
     }
-    const prevL = this.waterfallL
-    const prevR = this.waterfallR
-    this.waterfallL = waterfallL
-    this.waterfallR = waterfallR
+    
+    const prevL = this.waterfallL;
+    const prevR = this.waterfallR;
+    this.waterfallL = waterfallL;
+    this.waterfallR = waterfallR;
+    
     this.waterfallSocket.send(JSON.stringify({
       cmd: 'window',
       l: this.waterfallL,
       r: this.waterfallR
-    }))
-
-    const newCanvasX1 = this.idxToCanvasX(prevL)
-    const newCanvasX2 = this.idxToCanvasX(prevR)
-    const newCanvasWidth = newCanvasX2 - newCanvasX1
-
-    
-
-    this.ctx.drawImage(this.canvasElem, 0, 0, this.canvasWidth, this.canvasHeight, newCanvasX1, 0, newCanvasWidth, this.canvasHeight)
-
+    }));
+  
+    const prevWidth = prevR - prevL;
+    const newWidth = waterfallR - waterfallL;
+    const isZoomingIn = newWidth < prevWidth;
+  
+    // Create a temporary canvas
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = this.canvasWidth;
+    tempCanvas.height = this.canvasHeight;
+    const tempCtx = tempCanvas.getContext('2d');
+  
+    // Draw the current canvas content onto the temp canvas
+    tempCtx.drawImage(this.canvasElem, 0, 0);
+  
+    if (isZoomingIn) {
+      const imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
+      const zoomFactor = prevWidth / newWidth;
+      const blurRadius = Math.max(0, Math.min(2, Math.floor(zoomFactor - 1))); // Limit blur radius to 0-2
+      if (blurRadius > 0) {
+        const blurredImageData = this.applyBlur(imageData, tempCanvas.width, tempCanvas.height, blurRadius);
+        tempCtx.putImageData(blurredImageData, 0, 0);
+      }
+    }
+  
+  
+    const newCanvasX1 = this.idxToCanvasX(prevL);
+    const newCanvasX2 = this.idxToCanvasX(prevR);
+    const newCanvasWidth = newCanvasX2 - newCanvasX1;
+  
+    // Clear the main canvas
+    this.ctx.clearRect(0, 0, this.canvasWidth, this.canvasHeight);
+  
+    // Draw the scaled (and possibly blurred) image back to the main canvas
+    this.ctx.drawImage(
+      tempCanvas, 
+      0, 0, this.canvasWidth, this.canvasHeight,
+      newCanvasX1, 0, newCanvasWidth, this.canvasHeight
+    );
+  
     // Special case for zoom out or panning, blank the borders
     if ((prevR - prevL) <= (waterfallR - waterfallL) + 1) {
-      this.ctx.fillStyle = this.backgroundColor
-      this.ctx.fillRect(0, 0, newCanvasX1, this.canvasHeight)
-      this.ctx.fillRect(newCanvasX2, 0, this.canvasWidth - newCanvasX2, this.canvasHeight)
+      this.ctx.fillStyle = this.backgroundColor;
+      this.ctx.fillRect(0, 0, newCanvasX1, this.canvasHeight);
+      this.ctx.fillRect(newCanvasX2, 0, this.canvasWidth - newCanvasX2, this.canvasHeight);
     }
-    this.updateGraduation()
+  
+    this.updateGraduation();
     this.drawSpectrogram();
-    //this.resetRedrawTimeout(500)
   }
 
   getWaterfallRange () {
@@ -619,15 +697,12 @@ export default class SpectrumWaterfall {
 
   setOffset (offset) {
     this.waterfallColourShift = offset
-    //this.resetRedrawTimeout(100)
   }
   setMinOffset (offset) {
     this.minWaterfall = offset
-    //this.resetRedrawTimeout(100)
   }
   setMaxOffset (offset) {
     this.maxWaterfall = offset
-    //this.resetRedrawTimeout(100)
   }
 
   setAlpha (alpha) {
@@ -640,7 +715,6 @@ export default class SpectrumWaterfall {
 
   setColormap (name) {
     this.setColormapArray(getColormap(name))
-    //this.resetRedrawTimeout(50)
   }
 
   setUserID (userID) {
@@ -705,9 +779,7 @@ export default class SpectrumWaterfall {
     const mouseMovement = e.movementX
     const frequencyMovement = Math.round(mouseMovement / this.canvasElem.getBoundingClientRect().width * (this.waterfallR - this.waterfallL))
 
-    //if (!frequencyMovement) {
-    //  return
-    //}
+
     const newL = this.waterfallL - frequencyMovement
     const newR = this.waterfallR - frequencyMovement
     this.setWaterfallRange(newL, newR)

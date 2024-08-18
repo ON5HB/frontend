@@ -18,6 +18,9 @@
   import { init, audio, waterfall, events, FFTOffsetToFrequency, frequencyToFFTOffset, frequencyToWaterfallOffset, getMaximumBandwidth, waterfallOffsetToFrequency } from './lib/backend.js'
   import { constructLink, parseLink, storeInLocalStorage } from './lib/storage.js'
 
+  import { slide } from 'svelte/transition';
+  import { quintOut } from 'svelte/easing';
+
   let waterfallCanvas
   let spectrumCanvas
   let graduationCanvas
@@ -116,7 +119,7 @@
   let max_waterfall = 110
   function handleWaterfallColormapSelect (event) {
     waterfall.setColormap(currentColormap)
-    drawColormapPreview(currentColormap, colormapPreview)
+    //drawColormapPreview(currentColormap, colormapPreview)
   }
 
   // Waterfall slider controls
@@ -216,6 +219,7 @@
     updatePassband()
   }
 
+  
   // Entering new frequency into the textbox
   function handleFrequencyChange (event) {
     const frequency = event.detail
@@ -290,27 +294,82 @@
   let power = 0
   let powerPeak = 0
   const numberOfDots = 35; // Number of dots to represent the range from -100 to 0 dB
-  const s9Index = 18; // Index of S9 (This may change based on your scale)
+  const s9Index = 17; // Index of S9 (This may change based on your scale)
   const accumulator = RollingMax(10)
 
 
+  // Function to draw the S-meter
+  function drawSMeter(value) {
+            const canvas = document.getElementById('sMeter');
+            const ctx = canvas.getContext('2d');
+          
+            canvas.width = 300;  
+            canvas.height = 40;
+            
+            const width = canvas.width;
+            const height = canvas.height;
+
+            ctx.clearRect(0, 0, width, height);
+
+            const segmentWidth = 6;
+            const segmentGap = 3;
+            const segmentHeight = 8;
+            const lineY = 15;
+            const labelY = 25;
+            const tickHeight = 5;
+            const longTickHeight = 5;
+
+            const s9Position = width / 2;
+
+            ctx.strokeStyle = '#a7e6fe';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(0, lineY);
+            ctx.lineTo(s9Position, lineY);
+            ctx.stroke();
+
+            ctx.strokeStyle = '#ed1c24';
+            ctx.beginPath();
+            ctx.moveTo(s9Position, lineY);
+            ctx.lineTo(268, lineY);
+            ctx.stroke();
+
+            for (let i = 0; i < 30; i++) {
+                const x = i * (segmentWidth + segmentGap);
+                if (i < value) {
+                    ctx.fillStyle = i < 17 ? '#a3eced' : '#d9191c';
+                } else {
+                    ctx.fillStyle = i < 17 ? '#003333' : '#330000';
+                }
+                ctx.fillRect(x, 0, segmentWidth, segmentHeight);
+            }
+
+            ctx.font = '11px monospace';
+            ctx.textAlign = 'center';
+
+            const labels = ['S1', '3', '5', '7', '9', '+20', '+40', '+60dB'];
+
+            for (let i = 0; i <= 16; i++) {
+                const x = i *  16.6970588235;
+                ctx.fillStyle = x <= s9Position ? '#a3eced' : '#d9191c';
+                
+                if (i % 2 === 1) {
+                    ctx.fillRect(x, lineY, 1, longTickHeight + 2);
+                    if ((i-1)/2 < labels.length) {
+                        ctx.fillText(labels[(i-1)/2], x, labelY + 8);
+                    }
+                } else {
+                    ctx.fillRect(x, lineY, 1, tickHeight);
+                }
+            }
+  }
 
   // Function to update signal strength
   function setSignalStrength(db) {
-    db = Math.min(Math.max(db, -100), 0); // Ensure dB is within the range
-    const activeDots = Math.round((db + 100) * (numberOfDots) / 100);
+      db = Math.min(Math.max(db, -100), 0);
+      const activeSegments = Math.round((db + 100) * (numberOfDots) / 100);
 
-    // Update dots based on signal strength
-    for (let i = 0; i < numberOfDots; i++) {
-      let dot = document.getElementById('dot' + i);
-      dot.classList.remove('active', 'over-s9'); // Reset classes
-      if (i < activeDots) {
-        dot.classList.add('active');
-        if (i >= s9Index) {
-          dot.classList.add('over-s9'); // Use a different class for signals over S9
-        }
-      }
-    }
+      drawSMeter(activeSegments);
   }
 
   // Bandwidth offset controls
@@ -380,6 +439,8 @@
   //
   let updateInterval
   let lastUpdated = 0
+
+  
   function updateTick () {
     power = audio.getPowerDb() / 150 * 100 + audio.smeter_offset
     powerPeak = accumulator(power) / 150 * 100 + audio.smeter_offset
@@ -449,7 +510,9 @@
   function addBookmark() {
     const bookmark = {
       name: newBookmarkName,
-      link: link, // Adjust based on how you determine the link
+      link: link,
+      frequency: frequencyInputComponent.getFrequency(),
+      demodulation: demodulation
     };
     bookmarks.update(currentBookmarks => {
       const updatedBookmarks = [...currentBookmarks, bookmark];
@@ -458,6 +521,20 @@
     });
     newBookmarkName = '';
   }
+
+  function goToBookmark(bookmark) {
+    // Set frequency
+    frequencyInputComponent.setFrequency(bookmark.frequency);
+    handleFrequencyChange({ detail: bookmark.frequency });
+
+    // Set demodulation
+    demodulation = bookmark.demodulation;
+    handleDemodulationChange(null, true);
+
+    // Update the link
+    updateLink();
+  }
+
 
   function copyToClipboard(text) {
     try {
@@ -468,6 +545,19 @@
       console.error('Clipboard write failed', err);
     }
   }
+
+  function deleteBookmark(index) {
+    bookmarks.update(currentBookmarks => {
+      const updatedBookmarks = currentBookmarks.filter((_, i) => i !== index);
+      saveBookmarks(updatedBookmarks);
+      return updatedBookmarks;
+    });
+  }
+
+  function saveBookmarks(bookmarksToSave) {
+    localStorage.setItem('bookmarks', JSON.stringify(bookmarksToSave));
+  }
+
 
 
   // Decoder settings
@@ -553,19 +643,7 @@
     userId = generateUniqueId();
 
 
-    const smeterDots = document.getElementById('smeterDots');
-
-    // Function to create dots
-    function createDots() {
-      for (let i = 0; i < numberOfDots; i++) {
-        let dot = document.createElement('div');
-        dot.className = 'dot';
-        dot.id = 'dot' + i;
-        smeterDots.appendChild(dot);
-      }
-    }
-    // Initialize the dots on page load
-    createDots();
+  
 
     const storedBookmarks = localStorage.getItem('bookmarks');
     if (storedBookmarks) {
@@ -587,33 +665,24 @@
     if (event.data.startsWith("Chat history:")) {
       const history = event.data.replace("Chat history:\n", "").trim();
       if (history) {
-        // Split the history into individual messages and wrap each one in an object
         const historyMessages = history.split("\n").map((line, index) => ({
-          id: Date.now() + index, // Simple way to generate a unique ID for each historical message
-          text: line.trim()
+          id: Date.now() + index,
+          text: line.trim(),
+          isCurrentUser: line.startsWith(userId),
+          timestamp: Date.now() - (history.length - index) * 1000 // Approximate timestamp
         }));
-        messages.set(historyMessages); // Set the processed messages as the chat history
-
-        
-        setTimeout(() => {
-          chatContentDiv.scrollTop = chatContentDiv.scrollHeight;
-        }, 500); 
-        
+        messages.set(historyMessages);
       }
     } else {
-      // Wrap real-time messages in an object with a unique ID
       const receivedMessageObject = {
-        id: Date.now(), // Ensure uniqueness
-        text: event.data.trim() // The actual message text
+        id: Date.now(),
+        text: event.data.trim(),
+        isCurrentUser: event.data.startsWith(userId),
+        timestamp: Date.now()
       };
       messages.update(currentMessages => [...currentMessages, receivedMessageObject]);
-      setTimeout(() => {
-          chatContentDiv.scrollTop = chatContentDiv.scrollHeight;
-        }, 500); 
     }
-
-    
-
+    scrollToBottom();
   };
 
 
@@ -626,29 +695,94 @@
   function sendMessage() {
     const trimmedMessage = newMessage.trim();
     if (trimmedMessage) {
-      const uniqueMessageObject = {
-        id: Date.now(), // Still useful for internal tracking
-        text: formatMessage(trimmedMessage), // Assuming you have a function to format the message
-        raw: {
-          cmd: "chat",
-          message: trimmedMessage,
-          userid: userId // Use the generated unique ID
-        }
+      const messageObject = {
+        cmd: "chat",
+        message: trimmedMessage,
+        userid: userId
       };
-
-      // Serialize the object to JSON and send it
-      socket.send(JSON.stringify(uniqueMessageObject.raw)); // Send the formatted JSON string to the server
-      
-      
-      // Clear input after sending
-      newMessage = ''; 
-      
-      // Scroll to the latest message (assuming you have a chatContentDiv reference)
-      setTimeout(() => {
-        chatContentDiv.scrollTop = chatContentDiv.scrollHeight;
-      }, 500); 
+      socket.send(JSON.stringify(messageObject));
+      newMessage = '';
+      scrollToBottom();
     }
   }
+
+  function pasteFrequency() {
+    const frequency = frequencyInputComponent.getFrequency();
+    const currentDemodulation = demodulation;
+    const frequencyText = `[FREQ:${Math.round(frequency)}:${currentDemodulation}]`;
+    newMessage = newMessage + ' ' + frequencyText; // Append the frequency to the current message
+  }
+
+  function shareFrequency() {
+    const frequency = frequencyInputComponent.getFrequency();
+    const currentDemodulation = demodulation;
+    const shareMessage = `[FREQ:${Math.round(frequency)}:${currentDemodulation}] Check out this frequency!`;
+    const messageObject = {
+      cmd: "chat",
+      message: shareMessage,
+      userid: userId
+    };
+    socket.send(JSON.stringify(messageObject));
+    scrollToBottom();
+  }
+
+  function scrollToBottom() {
+    setTimeout(() => {
+      chatContentDiv.scrollTop = chatContentDiv.scrollHeight;
+    }, 100);
+  }
+
+
+  // Function to handle clicking on a shared frequency
+  function handleFrequencyClick(frequency, mode) {
+    console.log('Clicked frequency:', frequency, 'Type:', typeof frequency);
+    const numericFrequency = parseInt(frequency, 10);
+    if (isNaN(numericFrequency)) {
+      console.error('Invalid frequency:', frequency);
+      return;
+    }
+    frequencyInputComponent.setFrequency(numericFrequency);
+    handleFrequencyChange({ detail: numericFrequency });
+    demodulation = mode;
+    handleDemodulationChange(null, true);
+    updateLink();
+  }
+
+  
+
+  function formatFrequencyMessage(text) {
+    console.log('Formatting message:', text);
+    const regex = /(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) (user\d+): (.+)/;
+    const match = text.match(regex);
+    if (match) {
+      const [_, timestamp, username, message] = match;
+      const freqRegex = /\[FREQ:(\d+):(\w+)\]/;
+      const freqMatch = message.match(freqRegex);
+      if (freqMatch) {
+        const [fullMatch, frequency, demodulation] = freqMatch;
+        return {
+          isFormatted: true,
+          timestamp,
+          username,
+          frequency: parseInt(frequency, 10),
+          demodulation,
+          beforeFreq: message.split(fullMatch)[0],
+          afterFreq: message.split(fullMatch)[1]
+        };
+      }
+      return {
+        isFormatted: false,
+        timestamp,
+        username,
+        text: message
+      };
+    }
+    return {
+      isFormatted: false,
+      text
+    };
+  }
+
 
 
 
@@ -693,7 +827,7 @@
   on:mouseup={handleWindowMouseUp}
   />
 
-<main>
+  <main class="custom-scrollbar">
   <div class="h-screen overflow-hidden flex flex-col">
     <div class="w-full  sm:w-1/2 md:w-2/3 lg:w-3/4 sm:transition-all sm:ease-linear sm:duration-100 cursor-crosshair overflow-hidden" style="height: 400px; width:100%;" >
       <FrequencyInput bind:this={frequencyInputComponent} on:change={handleFrequencyChange}></FrequencyInput>
@@ -724,237 +858,23 @@
       width="1024" height="100"></canvas>
         <canvas class="hidden" bind:this={tempCanvas} width="1024" height="1024"></canvas>
       </div>
-      <!--<div class="fixed border border-black text-xs px-1 hidden 
-      transition-opacity duration-100 bg-blue-800 text-gray-400
-        peer-hover:block {frequencyHintActive ? 'opacity-1' : 'opacity-0'}"
-          style="left: {frequencyHintLeft}px; top: {frequencyHintTop}px;">
-        {frequencyHint}
-      </div>-->
+  
       <div class="{signalDecoder === 'none' ? 'hidden' : 'block'}">
         <Logger bind:this={logger} capacity={1000}></Logger>
       </div>
     </div>
    <div class="w-full sm:h-screen overflow-y-scroll sm:w-1/2 md:w-1/3 lg:w-1/4 sm:transition-all sm:ease-linear sm:duration-100" style="width:100%;">
-       <!--<div class="tab">
-        <div class="m-2">
-        </div>
-      </div>
-      <div class="tab relative">
-        <div class="flex absolute w-full h-full z-20 text-4xl bg-gray-800/75" id="startaudio">
-          <button class="basic-button m-auto">Start Audio</button>
-        </div>
-        <div class="bg-gray-500 text-left pl-2">
-          <label for="tab-multi-one">Audio</label>
-        </div>
-        <div class="m-2">
-          <div class="grid grid-cols-4">
-              {#each demodulators as demodulator (demodulator)}
-              <label>
-                <input type="radio" bind:group={demodulation}
-                  on:click={(e) => handleDemodulationChange(e, false)}
-                  on:change={(e) => handleDemodulationChange(e, true)}  class="hidden peer" name="demodulation" value={demodulator}
-                    autocomplete="off">
-                <div class="basic-button m-1"> 
-                    {demodulator} 
-                </div>
-              </label>
-              {/each}
-          </div>
-          <p class="text-white text-sm">Bandwidth: {bandwidth}kHz</p>
-          <div class="flex items-center justify-center pb-1 scale-90 sm:scale-75 md:scale-[0.70]">
-            {#each bandwithoffsets as bandwidthoffset (bandwidthoffset)}
-              <button class="click-button w-1/4" on:click={(e) => handleBandwidthOffsetClick(e, bandwidthoffset)}
-                  data-expand="{bandwidthoffset}">{bandwidthoffset}</button>
-            {/each}
-          </div>
-          <div>
-            <div class="flex">
-              <label class="w-1/6 text-white">
-                <input type="checkbox" class="hidden peer" autocomplete="off" bind:checked={mute} on:change={handleMuteChange}>
-                <div class="basic-button peer-checked:hidden">
-                  🔊
-                </div>
-                <div class="basic-button hidden peer-checked:block">
-                  🔇
-                </div>
-              </label>
-              <div class="w-1/6 text-white text-xs text-center m-auto">{volume}%</div>
-              <div class="px-0 w-2/3 align-middle">
-                <input type="range" bind:value={volume} on:input={handleVolumeChange} disabled={mute} min="0" max="100" step="0.1" class="disabled: cursor-not-allowed w-full align-middle appearance-none h-1 bg-gray-400 rounded outline-none">
-              </div>
-            </div>
-            <div class="flex">
-              <label class="w-1/6 text-white">
-                <input type="checkbox" class="hidden peer" autocomplete="off" bind:checked={squelchEnable} on:change={handleSquelchChange}>
-                <div class="basic-button line-through thick-line-through peer-checked:no-underline">
-                  &nbsp;Sq&nbsp;
-                </div>
-                <Tooltip text="Squelch"></Tooltip>
-              </label>
-              <span class="w-1/6 text-white text-xs text-center m-auto">{squelch}db</span>
-              <div class="px-0 w-2/3 align-middle">
-                <input type="range" bind:value={squelch} on:mousemove={handleSquelchMove} min="-150" max="0" step="0.1" class="w-full align-middle appearance-none h-1 bg-gray-400 rounded outline-none slider-thumb">
-              </div>
-            </div>
-            <div class="flex">
-              <span class="w-1/6 text-white text-xs text-center relative basic-button overflow-y-hidden">
-                <span
-                  class="bg-green-800 w-full h-full absolute left-0 bottom-0 z-10 transition-all"
-                  style="transform: translate3d(0, {-power}%, 0)"
-                ></span>
-                <span
-                  class="bg-red-800 w-full h-full absolute left-0 bottom-0 z-0 transition-all"
-                  style="transform: translate3d(0, {-powerPeak}%, 0)"
-                ></span>
-                <span class="relative z-20">Pwr</span>
-              </span>
-              <span class="w-1/6 text-white text-xs text-center m-auto">{power.toFixed(1)}db</span>
-              <div class="px-0 w-2/3 align-middle flex">
-                <div class="bg-gray-300 h-1 w-full m-auto rounded-full relative overflow-x-hidden">
-                  <span
-                    class="bg-green-500 h-1 w-full absolute left-0 top-0 rounded-full z-10 transition-all"
-                    style="transform: translate3d({power}%, 0, 0)"
-                  ></span>
-                  <span
-                    class="bg-red-500 h-1 w-full absolute left-0 top-0 rounded-full z-0 transition-all"
-                    style="transform: translate3d({powerPeak}%, 0, 0)"
-                  ></span>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div>
-            <div class="grid grid-cols-4 my-1">
-              <LineThroughButton name="NR" on:change={handleNRChange} bind:checked={NREnabled}>
-                <Tooltip text="Noise Reduction"></Tooltip>
-              </LineThroughButton>
-              <LineThroughButton name="NB" on:change={handleNBChange} bind:checked={NBEnabled}>
-                <Tooltip text="Noise Blanker"></Tooltip>
-              </LineThroughButton>
-              <LineThroughButton name="AN" on:change={handleANChange} bind:checked={ANEnabled}>
-                <Tooltip text="Autonotch"></Tooltip>
-              </LineThroughButton>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div class="tab">
-        <div class="bg-gray-500 text-left pl-2">
-          <label for="tab-multi-one">Waterfall</label>
-        </div>
-        <div class="m-2">
-          <div class="flex flex-wrap items-center content-center justify-center my-1">
-            <CheckButton name="Spectrum Analyzer" bind:checked={spectrumDisplay} on:change={handleSpectrumChange}></CheckButton>
-            <CheckButton name="Waterfall" bind:checked={waterfallDisplay} on:change={handleWaterfallChange}></CheckButton>
-          </div>
-          <div class="flex flex-wrap items-center justify-center w-full" aria-label="Bandwidth controls">
-              <button class="click-button w-1/4" on:click={(e) => handleWaterfallMagnify(e, 'max')}>🔎max</button>
-              <button class="click-button w-1/4" on:click={(e) => handleWaterfallMagnify(e, '+')}>🔎+</button>
-              <button class="click-button w-1/4" on:click={(e) => handleWaterfallMagnify(e, '-')}>🔎-</button>
-              <button class="click-button w-1/4" on:click={(e) => handleWaterfallMagnify(e, 'min')}>🔎min</button>
-          </div>
-          <div class="{spectrumDisplay ? 'flex' : 'hidden'}">
-            <div class="w-1/6 text-white text-xs align-middle p-auto m-auto">
-              Smoothing
-            </div>
-            <span class="w-1/6 text-white text-xs text-center m-auto">{alpha}</span>
-            <div class="px-0 w-2/3 align-middle">
-              <input type="range" bind:value={alpha} on:mousemove={handleAlphaMove} min="0" max="1" step="0.01" class="w-full align-middle appearance-none h-1 bg-gray-400 rounded outline-none slider-thumb">
-            </div>
-          </div>
-          <div class="{waterfallDisplay ? 'flex' : 'hidden'}">
-            <div class="w-1/6 text-white text-xs align-middle p-auto m-auto">
-              Brightness
-            </div>
-            <span class="w-1/6 text-white text-xs text-center m-auto">{brightness}</span>
-            <div class="px-0 w-2/3 align-middle">
-              <input type="range" bind:value={brightness} on:mousemove={handleBrightnessMove} min="0" max="255" step="1" class="w-full align-middle appearance-none h-1 bg-gray-400 rounded outline-none slider-thumb">
-            </div>
-          </div>
-          <div class="{waterfallDisplay ? 'flex' : 'hidden'} pt-1">
-            <div class="w-1/6 text-white text-xs text-center m-auto">Colormap: </div>
-            <div class="w-1/3 flex items-center align-middle m-auto px-2">
-              <canvas class="w-full h-4" width="256" bind:this={colormapPreview}></canvas>
-            </div>
-            <div class="px-0 w-1/2 h-full flex align-middle bg-transparent z-50">
-              <select class="h-full w-full py-px bg-transparent text-white text-xs border border-1 border-blue-500"
-                bind:value={currentColormap} on:change="{handleWaterfallColormapSelect}">
-                {#each availableColormaps as colormap}
-                  <option class="m-auto p-auto text-xs bg-black" value={colormap}>
-                    {colormap}
-                  </option>
-                {/each}
-              </select>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div class="tab">
-        <div class="bg-gray-500 text-left pl-2">
-          <label for="tab-multi-one">Bookmarks</label>
-        </div>
-        <div class="m-2">
-          <div class="flex">
-            <div class="border border-blue-500 text-blue-500 transition-all duration-100 text-center text-xs px-2 py-1 active:bg-blue-600 active:text-white">
-              <button on:click={handleLinkCopyClick}>📋 Link:</button>
-              <Popover text="Copied!"></Popover>
-            </div>
-            <input type="text" class="flex-grow bg-transparent text-white border border-l-0 border-blue-500 text-xs px-2" value={link} readonly/>
-          </div>
-        </div>
-      </div>
-      <div class="tab">
-        <div class="bg-gray-500 text-left pl-2">
-          <label for="tab-multi-one">Decoders</label>
-        </div>
-        <div class="m-2">
-          <div class="grid grid-cols-4">
-            {#each decoders as decoder (decoder)}
-            <label>
-              <input type="radio" bind:group={signalDecoder}
-                on:change={(e) => handleDecoderChange(e, true)}  class="hidden peer" name="decoder" value={decoder}
-                  autocomplete="off">
-              <div class="basic-button m-1"> 
-                  {decoder} 
-              </div>
-            </label>
-            {/each}
-        </div>
-        
-    </div>
-    <div class="tab">
-      <div class="bg-gray-500 text-left pl-2">
-        <label for="tab-multi-one">Statistics</label>
-      </div>
-      <div class="p-4">
-        <div class="stats-box bg-white p-4 rounded-lg shadow-md">
-          <ul class="list-none space-y-2">
-            <li>
-              <span class="stat-title text-sm font-medium text-gray-800">User Count: </span>
-              <span id="total_user_count" class="stat-value text-sm font-semibold">N/A</span>
-            </li>
-            <li>
-              <span class="stat-title text-sm font-medium text-gray-800">Total Waterfall Stream: </span>
-              <span id="total_water_stream" class="stat-value text-sm font-semibold">N/A</span>
-            </li>
-            <li>
-              <span class="stat-title text-sm font-medium text-gray-800">Total Audio Stream: </span>
-              <span id="total_audio_stream" class="stat-value text-sm font-semibold">N/A</span>
-            </li>
-          </ul>
-        </div>
-      </div>
-    </div>-->
-    <div class="min-h-screen bg-gray-800 text-white" style="padding-top: 10px;">
+
+    <div class="min-h-screen bg-custom-dark text-gray-200" style="padding-top: 10px;">
       <div class="max-w-screen-lg mx-auto">
         <!-- Tabs -->
         <ul class="flex flex-wrap justify-center cursor-pointer" style="padding-bottom: 15px;">
-          <li class={`mx-1 my-1 md:mx-2 px-2 md:px-4 py-1 md:py-2 text-xs md:text-sm rounded-lg ${activeTab === 'audio' ? 'bg-blue-500' : 'bg-gray-700 hover:bg-gray-600'} text-white`} on:click="{() => setActiveTab('audio')}">Audio</li>
-          <li class={`mx-1 my-1 md:mx-2 px-2 md:px-4 py-1 md:py-2 text-xs md:text-sm rounded-lg ${activeTab === 'waterfall' ? 'bg-blue-500' : 'bg-gray-700 hover:bg-gray-600'} text-white`} on:click="{() => setActiveTab('waterfall')}">Waterfall</li>
-          <li class={`mx-1 my-1 md:mx-2 px-2 md:px-4 py-1 md:py-2 text-xs md:text-sm rounded-lg ${activeTab === 'bookmarks' ? 'bg-blue-500' : 'bg-gray-700 hover:bg-gray-600'} text-white`} on:click="{() => setActiveTab('bookmarks')}">Bookmarks</li>
-          <li class={`mx-1 my-1 md:mx-2 px-2 md:px-4 py-1 md:py-2 text-xs md:text-sm rounded-lg ${activeTab === 'decoders' ? 'bg-blue-500' : 'bg-gray-700 hover:bg-gray-600'} text-white`} on:click="{() => setActiveTab('decoders')}">Decoders</li>
-          <li class={`mx-1 my-1 md:mx-2 px-2 md:px-4 py-1 md:py-2 text-xs md:text-sm rounded-lg ${activeTab === 'statistics' ? 'bg-blue-500' : 'bg-gray-700 hover:bg-gray-600'} text-white`} on:click="{() => setActiveTab('statistics')}">Statistics</li>
-          <li class={`mx-1 my-1 md:mx-2 px-2 md:px-4 py-1 md:py-2 text-xs md:text-sm rounded-lg ${activeTab === 'chat' ? 'bg-blue-500' : 'bg-gray-700 hover:bg-gray-600'} text-white`} on:click="{() => setActiveTab('chat')}">Chat</li>
+          <li class={`glass-button mx-1 my-1 md:mx-2 px-3 md:px-4 py-1.5 md:py-2 text-xs md:text-sm rounded-lg ${activeTab === 'audio' ? 'active' : ''} text-gray-300`} on:click="{() => setActiveTab('audio')}">Audio</li>
+          <li class={`glass-button mx-1 my-1 md:mx-2 px-3 md:px-4 py-1.5 md:py-2 text-xs md:text-sm rounded-lg ${activeTab === 'waterfall' ? 'active' : ''} text-gray-300`} on:click="{() => setActiveTab('waterfall')}">Waterfall</li>
+          <li class={`glass-button mx-1 my-1 md:mx-2 px-3 md:px-4 py-1.5 md:py-2 text-xs md:text-sm rounded-lg ${activeTab === 'bookmarks' ? 'active' : ''} text-gray-300`} on:click="{() => setActiveTab('bookmarks')}">Bookmarks</li>
+          <li class={`glass-button mx-1 my-1 md:mx-2 px-3 md:px-4 py-1.5 md:py-2 text-xs md:text-sm rounded-lg ${activeTab === 'decoders' ? 'active' : ''} text-gray-300`} on:click="{() => setActiveTab('decoders')}">Decoders</li>
+          <li class={`glass-button mx-1 my-1 md:mx-2 px-3 md:px-4 py-1.5 md:py-2 text-xs md:text-sm rounded-lg ${activeTab === 'statistics' ? 'active' : ''} text-gray-300`} on:click="{() => setActiveTab('statistics')}">Statistics</li>
+          <li class={`glass-button mx-1 my-1 md:mx-2 px-3 md:px-4 py-1.5 md:py-2 text-xs md:text-sm rounded-lg ${activeTab === 'chat' ? 'active' : ''} text-gray-300`} on:click="{() => setActiveTab('chat')}">Chat</li>
         </ul>
         
 
@@ -966,65 +886,74 @@
             <div class="flex absolute inset-0 z-20 justify-center items-center bg-gray-800 bg-opacity-75 backdrop-filter backdrop-blur-sm"  id="startaudio">
               <button class="text-white font-bold py-2 px-4 rounded">Start Audio</button>
             </div>
-              <div class="m-2">
-                <div class="w-full max-w-xs mx-auto">
-                  <label for="demodulator-select" class="block text-sm font-medium text-white mb-1">Demodulator:</label>
-                  <select id="demodulator-select" bind:value={demodulation} on:change="{(e) => handleDemodulationChange(e, true)}" class="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md bg-gray-700 text-white">
+            <div class="m-2">
+              <div class="w-full max-w-xs mx-auto">
+                <label for="demodulator-select" class="block text-sm font-medium text-gray-300 mb-2">Demodulator:</label>
+                <div class="relative">
+                  <select 
+                    id="demodulator-select" 
+                    bind:value={demodulation} 
+                    on:change="{(e) => handleDemodulationChange(e, true)}" 
+                    class="glass-select block w-full pl-3 pr-10 py-2 text-sm rounded-lg text-gray-200 appearance-none focus:outline-none"
+                  >
                     {#each demodulators as demodulator}
                       <option value="{demodulator}">{demodulator}</option>
                     {/each}
                   </select>
+                  <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-400">
+                    <svg class="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
+                      <path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" />
+                    </svg>
+                  </div>
                 </div>
+              </div>
+            </div>
+            
+            <div class="flex flex-col space-y-6 mt-6">
+              <!-- Mute and Volume Control -->
+              <div class="control-group">
+                <button class="glass-button text-white font-bold py-2 px-4 rounded-full w-12 h-12 flex items-center justify-center"
+                        on:click="{handleMuteChange}">
+                  {mute ? 'ðŸ”‡' : 'ðŸ”Š'}
+                </button>
+                <div class="slider-container">
+                  <input type="range" bind:value={volume} on:input={handleVolumeChange} 
+                        class="glass-slider" disabled="{mute}" min="0" max="100" step="1">
+                </div>
+                <span class="value-display text-gray-300">{volume}%</span>
               </div>
             
-            <div class="flex flex-col space-y-4 mt-4">
-              <!-- Mute and Volume Control -->
-              <div class="flex items-center justify-center space-x-4">
-                <button class="bg-gray-700 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-full"
-                        on:click="{(handleMuteChange)}">
-                  {mute ? '🔇' : '🔊'}
-                </button>
-                <input type="range" bind:value={volume} on:input={handleVolumeChange} 
-                      class="range range-primary" disabled="{mute}" min="0" max="100" step="1">
-                <span class="text-white min-w-16 text-center">{volume}%</span> <!-- Adjusted -->
-              </div>
-
-              
-
               <!-- Squelch Enable and Level -->
-              <div class="flex items-center justify-center space-x-4">
-                <button style="background-color: {squelchEnable ? '#10b981' : 'rgb(55 65 81/var(--tw-bg-opacity))'};" class="{`bg-${squelchEnable ? 'red' : 'gray'}-700 hover:bg-${squelchEnable ? 'red' : 'gray'}-600 text-white font-bold py-2 px-4 rounded-full`}"
-                        on:click="{(handleSquelchChange)}">
+              <div class="control-group">
+                <button class="glass-button text-white font-bold py-2 px-4 rounded-full w-12 h-12 flex items-center justify-center"
+                        style="background: {squelchEnable ? 'rgba(16, 185, 129, 0.2)' : 'rgba(255, 255, 255, 0.05)'}"
+                        on:click="{handleSquelchChange}">
                   Sq
                 </button>
-                <input type="range" bind:value="{squelch}" on:mousemove="{handleSquelchMove}"
-                      class="range range-primary" min="-150" max="0" step="1">
-                <span class="text-white min-w-16 text-center">{squelch}db</span> <!-- Adjusted -->
+                <div class="slider-container">
+                  <input type="range" bind:value="{squelch}" on:mousemove="{handleSquelchMove}"
+                        class="glass-slider" min="-150" max="0" step="1">
+                </div>
+                <span class="value-display text-gray-300">{squelch}db</span>
               </div>
-
+            
               <!-- Bandwidth Display and Adjustment -->
               <div class="mt-4">
-                <p class="text-white text-sm text-center mb-2">Bandwidth: {bandwidth} kHz</p>
-                <div class="flex justify-center items-center gap-2">
-                    {#each bandwithoffsets as bandwidthoffset (bandwidthoffset)}
-                        <button class="bg-gray-700 hover:bg-blue-500 text-white font-bold py-1 px-3 rounded transition duration-300 ease-in-out"
-                                on:click={(e) => handleBandwidthOffsetClick(e, bandwidthoffset)}
-                                title="{bandwidthoffset} kHz">
-                            {bandwidthoffset}
-                        </button>
-                    {/each}
+                <p class="text-gray-300 text-sm text-center mb-3">Bandwidth: {bandwidth} kHz</p>
+                <div class="flex justify-center items-center gap-2 flex-wrap">
+                  {#each bandwithoffsets as bandwidthoffset (bandwidthoffset)}
+                    <button class="glass-button text-gray-300 font-medium py-1 px-3 rounded-lg transition duration-300 ease-in-out text-sm"
+                            on:click={(e) => handleBandwidthOffsetClick(e, bandwidthoffset)}
+                            title="{bandwidthoffset} kHz">
+                      {bandwidthoffset}
+                    </button>
+                  {/each}
                 </div>
               </div>
 
 
-              <div class="smeter-container relative pt-1 w-full max-w-xs mx-auto">
-                <div class="smeter-dots" id="smeterDots">
-                  <!-- Dots will be generated by JavaScript -->
-                </div>
-                <div class="smeter-labels">
-                  <span>S1</span><span>S3</span><span>S5</span><span>S7</span><span>S9</span>
-                  <span>+20dB</span><span>+40dB</span><span>+60dB</span>
-                </div>
+              <div class="smeter-container">
+                <canvas id="sMeter" width="300" height="40"></canvas>
               </div>
               <!-- Power and Peak Display
               <div class="relative pt-1 w-full max-w-xs mx-auto">
@@ -1042,210 +971,378 @@
             </div>
 
             <div class="flex justify-center gap-4 mt-4">
-              <button class="transition-colors duration-300 ease-in-out hover:bg-gray-600 text-white font-bold py-1 px-2 rounded"
-                      style="background-color: {NREnabled ? '#10b981' : '#4b5563'};"
-                      on:click="{handleNRChange}">
+              <button 
+                class={`glass-toggle-button text-gray-200 font-medium py-2 px-3 rounded-lg transition duration-300 ease-in-out ${NREnabled ? 'active' : ''}`}
+                on:click="{handleNRChange}"
+              >
                 NR
               </button>
-              <button class="transition-colors duration-300 ease-in-out hover:bg-gray-600 text-white font-bold py-1 px-2 rounded"
-                      style="background-color: {NBEnabled ? '#10b981' : '#4b5563'};"
-                      on:click="{handleNBChange}">
+              <button 
+                class={`glass-toggle-button text-gray-200 font-medium py-2 px-3 rounded-lg transition duration-300 ease-in-out ${NBEnabled ? 'active' : ''}`}
+                on:click="{handleNBChange}"
+              >
                 NB
               </button>
-              <button class="transition-colors duration-300 ease-in-out hover:bg-gray-600 text-white font-bold py-1 px-2 rounded"
-                      style="background-color: {ANEnabled ? '#10b981' : '#4b5563'};"
-                      on:click="{handleANChange}">
+              <button 
+                class={`glass-toggle-button text-gray-200 font-medium py-2 px-3 rounded-lg transition duration-300 ease-in-out ${ANEnabled ? 'active' : ''}`}
+                on:click="{handleANChange}"
+              >
                 AN
               </button>
-          </div>
+            </div>
            
         </div>
         <!--Audio Tab End-->
 
         <!--Waterfall Tab Start-->
         <div class="{activeTab === 'waterfall' ? '' : 'hidden'} p-4">
-          <div class="space-y-4">
-              <!-- Bandwidth Controls -->
-              <div class="text-center mb-4">
-                  <label class="block text-sm font-medium text-white">Bandwidth Controls</label>
-                  <div class="flex justify-center gap-2 mt-2 items-center">
-                      <button class="bg-gray-700 hover:bg-gray-600 text-white font-bold py-1 px-2 rounded"
-                              on:click="{(e) => handleWaterfallMagnify(e, 'max')}">🔎Max</button>
-                      <button class="bg-gray-700 hover:bg-gray-600 text-white font-bold py-1 px-2 rounded"
-                              on:click="{(e) => handleWaterfallMagnify(e, '+')}">🔎+</button>
-                      <button class="bg-gray-700 hover:bg-gray-600 text-white font-bold py-1 px-2 rounded"
-                              on:click="{(e) => handleWaterfallMagnify(e, '-')}">🔎-</button>
-                      <button class="bg-gray-700 hover:bg-gray-600 text-white font-bold py-1 px-2 rounded"
-                              on:click="{(e) => handleWaterfallMagnify(e, 'min')}">🔎Min</button>
+          <div class="space-y-6">
+            <!-- Zoom Level -->
+            <div class="text-center mb-4">
+              <div class="flex flex-wrap justify-center gap-2 mt-2">
+                <button class="glass-button text-white font-bold py-2 px-3 rounded-lg flex items-center"
+                        on:click="{(e) => handleWaterfallMagnify(e, '+')}" title="Zoom in">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="11" cy="11" r="8"/>
+                    <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                    <line x1="11" y1="8" x2="11" y2="14"/>
+                    <line x1="8" y1="11" x2="14" y2="11"/>
+                  </svg>
+                  <span class="text-sm">In</span>
+                </button>
+                <button class="glass-button text-white font-bold py-2 px-3 rounded-lg flex items-center"
+                        on:click="{(e) => handleWaterfallMagnify(e, '-')}" title="Zoom out">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="11" cy="11" r="8"/>
+                    <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                    <line x1="8" y1="11" x2="14" y2="11"/>
+                  </svg>
+                  <span class="text-sm">Out</span>
+                </button>
+                <button class="glass-button text-white font-bold py-2 px-3 rounded-lg flex items-center"
+                        on:click="{(e) => handleWaterfallMagnify(e, 'max')}" title="Zoom to max">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                    <line x1="3" y1="12" x2="21" y2="12"/>
+                    <line x1="12" y1="3" x2="12" y2="21"/>
+                  </svg>
+                  <span class="text-sm">Max</span>
+                </button>
+                <button class="glass-button text-white font-bold py-2 px-3 rounded-lg flex items-center"
+                        on:click="{(e) => handleWaterfallMagnify(e, 'min')}" title="Zoom to min">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                    <line x1="8" y1="12" x2="16" y2="12"/>
+                  </svg>
+                  <span class="text-sm">Min</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Automatic Waterfall Adjustment -->
+            <div class="flex justify-center items-center">
+              <span class="text-sm font-medium text-gray-300 mr-2">Auto Adjust:</span>
+              <button 
+                class={`glass-toggle-button text-gray-200 font-medium py-2 px-4 rounded-lg transition duration-300 ease-in-out ${autoAdjust ? 'active' : ''}`}
+                on:click="{() => handleAutoAdjust(!autoAdjust)}"
+              >
+                {autoAdjust ? 'ON' : 'OFF'}
+              </button>
+            </div>
+
+            <!-- Brightness Control -->
+            {#if !autoAdjust}
+            <div transition:slide="{{ duration: 300, easing: quintOut }}">
+              <label class="block text-sm font-medium text-gray-300 mb-2 text-center">Brightness</label>
+              <div class="space-y-4">
+                <div class="control-group">
+                  <span class="text-gray-300 text-sm w-10">Min:</span>
+                  <div class="slider-container">
+                    <input type="range" bind:value="{min_waterfall}" min="-100" max="255" step="1"
+                          class="glass-slider" on:input="{handleMinMove}">
                   </div>
-              </div>
-
-              <!-- Brightness Control -->
-              <div class="flex items-center justify-between">
-                <label class="block text-sm font-medium text-white">Min:</label>
-                <input type="range" bind:value="{min_waterfall}" min="-100" max="255" step="1"
-                        class="range range-primary w-full max-w-md ml-4"
-                        on:input="{handleMinMove}">
-              </div>
-              <div class="flex items-center justify-between">
-                <label class="block text-sm font-medium text-white">Max:</label>
-                <input type="range" bind:value="{max_waterfall}" min="0" max="255" step="1"
-                        class="range range-primary w-full max-w-md ml-4"
-                        on:input="{handleMaxMove}">
-              </div>
-
-              <!-- Colormap Control -->
-              <div class="flex items-center justify-between mt-4">
-                  <label class="block text-sm font-medium text-white">Colormap:</label>
-                  <select bind:value="{currentColormap}" on:change="{handleWaterfallColormapSelect}"
-                          class="block w-full max-w-md ml-4 pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 rounded-md bg-gray-700 text-white">
-                      {#each availableColormaps as colormap}
-                          <option class="bg-black" value="{colormap}">
-                              {colormap}
-                          </option>
-                      {/each}
-                  </select>
-              </div>
-
-              
-              <!-- Automatic Waterfall Adjustment -->
-              <div class="flex items-center justify-between mt-4">
-                <label for="autoAdjust" class="block text-sm font-medium text-white">Auto Adjust:</label>
-                <input type="checkbox" id="autoAdjust"
-                      bind:checked={autoAdjust} on:change={() => handleAutoAdjust(autoAdjust)}
-                      class="ml-4 h-4 w-4 text-blue-600 border-gray-300 rounded">
-              </div>
-
-
-
-              <!-- Colormap Preview -->
-              <div class="flex items-center justify-between mt-4">
-                  <label class="block text-sm font-medium text-white">Colormap Preview:</label>
-                  <div class="flex w-full max-w-md ml-4 items-center justify-center bg-gray-800 rounded overflow-hidden">
-                      <canvas class="w-full" height="50" bind:this={colormapPreview}></canvas>
+                  <span class="value-display text-gray-300 w-10 text-right">{min_waterfall}</span>
+                </div>
+                <div class="control-group">
+                  <span class="text-gray-300 text-sm w-10">Max:</span>
+                  <div class="slider-container">
+                    <input type="range" bind:value="{max_waterfall}" min="0" max="255" step="1"
+                          class="glass-slider" on:input="{handleMaxMove}">
                   </div>
+                  <span class="value-display text-gray-300 w-10 text-right">{max_waterfall}</span>
+                </div>
               </div>
+            </div>
+          {/if}
+
+          <!-- Colormap Control -->
+          <div class="flex justify-center items-center">
+            <span class="text-sm font-medium text-gray-300 mr-2">Colormap:</span>
+            <div class="relative inline-block w-48">
+              <select 
+                id="colormap-select" 
+                bind:value={currentColormap} 
+                on:change="{handleWaterfallColormapSelect}" 
+                class="glass-select block w-full pl-3 pr-10 py-2 text-sm rounded-lg text-gray-200 appearance-none focus:outline-none"
+              >
+                {#each availableColormaps as colormap}
+                  <option value="{colormap}">{colormap}</option>
+                {/each}
+              </select>
+              <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-400">
+                <svg class="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
+                  <path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" />
+                </svg>
+              </div>
+            </div>
+          </div>
+
+            
+
+
           </div>
         </div>
-
         <!--Waterfall Tab End-->
       
-        <div class="{activeTab === 'bookmarks' ? '' : 'hidden'} p-4">
-          <div class="space-y-4">
-            <div class="flex justify-between items-center">
-              <h2 class="text-lg font-semibold text-white">Bookmarks</h2>
-              <button class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded" on:click="{addBookmark}">Add Current</button>
-            </div>
-        
-            <div class="flex items-center bg-gray-700 rounded-lg overflow-hidden my-2">
-              <input class="flex-grow bg-transparent text-white p-2 text-xs focus:outline-none" bind:value="{newBookmarkName}" placeholder="New bookmark name"/>
-            </div>
-        
-            <div class="flex items-center bg-gray-700 rounded-lg overflow-hidden">
-              <input type="text" class="flex-grow bg-transparent text-white p-2 text-xs focus:outline-none" value={link} readonly />
-              <div class="px-3 py-2 bg-blue-500 hover:bg-blue-600 cursor-pointer" on:click="{handleLinkCopyClick}">📋 Copy</div>
-            </div>
-        
-            <!-- Display bookmarks -->
-            {#each $bookmarks as bookmark}
-              <div class="flex items-center bg-gray-700 rounded-lg overflow-hidden my-2">
-                <div class="flex-grow text-white p-2 text-xs">{bookmark.name}</div>
-                <div class="px-3 py-2 bg-green-500 hover:bg-green-600 cursor-pointer" on:click={() => copy(bookmark.link)}>Copy Link</div>
-              </div>
-            {/each}
+        <!--Bookmarks Tab Start-->
+<div class="{activeTab === 'bookmarks' ? '' : 'hidden'} p-4">
+  <div class="space-y-6">
+    <!-- Add Bookmark Section -->
+    <div class="text-center">
+      <label class="block text-sm font-medium text-gray-300 mb-2">Add New Bookmark</label>
+      <div class="flex justify-center items-center gap-2">
+        <input 
+          class="glass-input text-white text-sm rounded-lg focus:outline-none px-3 py-2 w-48"
+          bind:value="{newBookmarkName}" 
+          placeholder="Bookmark name"
+        />
+        <button 
+          class="glass-button text-white font-bold py-2 px-4 rounded-lg flex items-center"
+          on:click="{addBookmark}"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd" />
+          </svg>
+          Add
+        </button>
+      </div>
+    </div>
+
+    <!-- Current Link Section -->
+        <div class="text-center">
+          <label class="block text-sm font-medium text-gray-300 mb-2">Current Link</label>
+          <div class="flex justify-center items-center gap-2">
+            <input 
+              type="text" 
+              class="glass-input text-white text-sm rounded-lg focus:outline-none px-3 py-2 w-64"
+              value={link} 
+              readonly 
+            />
+            <button 
+              class="glass-button text-white font-bold py-2 px-4 rounded-lg flex items-center"
+              on:click="{handleLinkCopyClick}"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                <path d="M8 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z" />
+                <path d="M6 3a2 2 0 00-2 2v11a2 2 0 002 2h8a2 2 0 002-2V5a2 2 0 00-2-2 3 3 0 01-3 3H9a3 3 0 01-3-3z" />
+              </svg>
+              Copy
+            </button>
           </div>
         </div>
-      
-        <div class="{activeTab === 'decoders' ? '' : 'hidden'} p-4">
-          <div class="space-y-6">
-              <!-- Decoding Options -->
-              <div class="text-center">
-                  <div class="mb-4">
-                      <h3 class="text-xl font-semibold text-white">Decoder Options</h3>
-                      <div class="mt-4 flex items-center justify-center gap-4">
-                          <label class="flex items-center cursor-pointer">
-                              <input type="radio" class="hidden" name="decoderOption" value="none" on:change="{(e) => handleFt8Decoder(e, false)}" checked />
-                              <span style="background-color: {!ft8Enabled ? '#10b981' : '#4b5563'};" class="bg-gray-700 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded">None</span>
-                          </label>
-                          <label class="flex items-center cursor-pointer">
-                              <input type="radio" class="hidden" name="decoderOption" value="ft8" on:change="{(e) => handleFt8Decoder(e, true)}" />
-                              <span style="background-color: {ft8Enabled ? '#10b981' : '#4b5563'};" class="bg-gray-700 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded">FT8</span>
-                          </label>
-                      </div>
-                  </div>
+
+        <!-- Bookmarks List -->
+        <div class="space-y-4">
+          <label class="block text-sm font-medium text-gray-300 mb-2 text-center">Saved Bookmarks</label>
+          {#each $bookmarks as bookmark, index}
+            <div class="glass-panel rounded-lg p-3 flex items-center justify-between">
+              <span class="text-white text-sm">{bookmark.name}</span>
+              <div class="flex gap-2">
+                <button 
+                  class="glass-button text-white font-bold py-1 px-3 rounded-lg flex items-center"
+                  on:click={() => goToBookmark(bookmark)}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z" clip-rule="evenodd" />
+                  </svg>
+                  Go
+                </button>
+                <button 
+                  class="glass-button text-white font-bold py-1 px-3 rounded-lg flex items-center"
+                  on:click={() => copy(bookmark.link)}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" viewBox="0 0 20 20" fill="currentColor">
+                    <path d="M8 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z" />
+                    <path d="M6 3a2 2 0 00-2 2v11a2 2 0 002 2h8a2 2 0 002-2V5a2 2 0 00-2-2 3 3 0 01-3 3H9a3 3 0 01-3-3z" />
+                  </svg>
+                  Copy
+                </button>
+                <button 
+                  class="glass-button text-white font-bold py-1 px-3 rounded-lg flex items-center"
+                  on:click={() => deleteBookmark(index)}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" />
+                  </svg>
+                  Delete
+                </button>
               </div>
-      
-              <!-- FT8 Messages List, initially hidden, shown only if FT8 is enabled -->
-              {#if ft8Enabled}
-              <div class="bg-gray-700 rounded-lg overflow-hidden">
-                  <div class="p-4">
-                      <h4 class="text-white font-semibold text-lg" style="display: inline-block;">FT8 Messages </h4>
-                      <h4 class="text-white font-semibold text-lg" style="display: inline-block;" id="farthest-distance"> - Farthest Distance:</h4>
-                      <div class="mt-2 text-white overflow-auto max-h-60" id="ft8MessagesList">
-                          <!-- Dynamic content populated here -->
-                      </div>
-                  </div>
-              </div>
-              {/if}
-          </div>
+            </div>
+          {/each}
+        </div>
       </div>
+    </div>
+    <!--Bookmarks Tab End-->
+      
+    <!--Decoders Tab Start-->
+    <div class="{activeTab === 'decoders' ? '' : 'hidden'} p-4">
+      <div class="space-y-6">
+        <!-- Decoder Options -->
+        <div class="text-center">
+          <label class="block text-sm font-medium text-gray-300 mb-2">Decoder Options</label>
+          <div class="flex justify-center gap-2">
+            <button 
+              class="glass-button text-white font-bold py-2 px-4 rounded-lg flex items-center {!ft8Enabled ? 'active' : ''}"
+              on:click="{(e) => handleFt8Decoder(e, false)}"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
+              </svg>
+              None
+            </button>
+            <button 
+              class="glass-button text-white font-bold py-2 px-4 rounded-lg flex items-center {ft8Enabled ? 'active' : ''}"
+              on:click="{(e) => handleFt8Decoder(e, true)}"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clip-rule="evenodd" />
+              </svg>
+              FT8
+            </button>
+          </div>
+        </div>
+
+        <!-- FT8 Messages List -->
+        {#if ft8Enabled}
+          <div class="glass-panel rounded-lg p-4 scrollbar-container">
+            <div class="flex justify-between items-center mb-4">
+              <h4 class="text-white font-semibold text-lg">FT8 Messages</h4>
+              <span class="text-white font-semibold text-sm" id="farthest-distance">Farthest Distance: 0 km</span>
+            </div>
+            <div class="mt-2 text-white overflow-auto max-h-60 space-y-1 custom-scrollbar pr-2">
+              <div id="ft8MessagesList">
+                <!-- Dynamic content populated here -->
+              </div>
+            </div>
+          </div>
+        {/if}
+      </div>
+    </div>
+    <!--Decoders Tab End-->
       
       
       </div>      
       <div class="{activeTab === 'statistics' ? '' : 'hidden'} p-4">
-          <div class="text-center mb-6">
-              <h2 class="text-xl font-semibold text-white mb-4">Live Statistics Overview</h2>
-              <p class="text-gray-400">Insights into current platform usage.</p>
+        <div class="text-center mb-6">
+          <h2 class="text-2xl font-semibold text-white mb-2">Live Statistics Overview</h2>
+          <p class="text-gray-300 text-sm">Real-time insights into platform usage</p>
+        </div>
+      
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <!-- Waterfall Bandwidth -->
+          <div class="glass-panel rounded-lg p-6 flex flex-col items-center justify-center">
+            <div class="text-blue-400 mb-2">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+              </svg>
+            </div>
+            <h3 class="text-white font-semibold text-lg mb-2">Waterfall Bandwidth</h3>
+            <span id="total_water_stream" class="text-3xl font-bold text-blue-400">N/A kbits</span>
+            <p class="text-gray-300 text-sm mt-2 text-center">Total bandwidth of all waterfall streams</p>
           </div>
       
-          <div class="flex flex-wrap justify-center gap-8">
-              <div class="flex flex-col bg-gray-700 p-4 rounded-lg shadow-md w-full max-w-sm items-stretch">
-                  <h3 class="text-white font-semibold text-lg text-center">Waterfall Bandwidth</h3>
-                  <span id="total_water_stream" class="stat-value text-2xl font-bold text-blue-400 mt-2 text-center">N/A kbits</span>
-                  <p class="text-gray-400 mt-2 text-center">Total bandwidth of all waterfall streams.</p>
-              </div>
-      
-              <div class="flex flex-col bg-gray-700 p-4 rounded-lg shadow-md w-full max-w-sm items-stretch">
-                  <h3 class="text-white font-semibold text-lg text-center">Audio Bandwidth</h3>
-                  <span id="total_audio_stream" class="stat-value text-2xl font-bold text-green-400 mt-2 text-center">N/A kbits</span>
-                  <p class="text-gray-400 mt-2 text-center">Total bandwidth of all audio streams.</p>
-              </div>
-      
-              <div class="flex flex-col bg-gray-700 p-4 rounded-lg shadow-md w-full max-w-sm items-stretch">
-                  <h3 class="text-white font-semibold text-lg text-center">User Count</h3>
-                  <span id="total_user_count" class="stat-value text-2xl font-bold text-yellow-400 mt-2 text-center">N/A</span>
-                  <p class="text-gray-400 mt-2 text-center">Current number of connected users.</p>
-              </div>
+          <!-- Audio Bandwidth -->
+          <div class="glass-panel rounded-lg p-6 flex flex-col items-center justify-center">
+            <div class="text-green-400 mb-2">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
+              </svg>
+            </div>
+            <h3 class="text-white font-semibold text-lg mb-2">Audio Bandwidth</h3>
+            <span id="total_audio_stream" class="text-3xl font-bold text-green-400">N/A kbits</span>
+            <p class="text-gray-300 text-sm mt-2 text-center">Total bandwidth of all audio streams</p>
           </div>
+      
+          <!-- User Count -->
+          <div class="glass-panel rounded-lg p-6 flex flex-col items-center justify-center">
+            <div class="text-yellow-400 mb-2">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+              </svg>
+            </div>
+            <h3 class="text-white font-semibold text-lg mb-2">User Count</h3>
+            <span id="total_user_count" class="text-3xl font-bold text-yellow-400">N/A</span>
+            <p class="text-gray-300 text-sm mt-2 text-center">Current number of connected users</p>
+          </div>
+        </div>
       </div>
-      <div class="{activeTab === 'chat' ? '' : 'hidden'} p-4">
-          <div class="space-y-4">
-              <!-- Chat Messages Container -->
-              <div class="overflow-auto h-64 bg-gray-700 rounded-lg p-4 text-left" id="chat_content">
-                  {#each $messages as {id, text} (id)}
-                      <!-- Individual Message -->
-                      <div class="bg-gray-700 text-white p-2 rounded-lg" style="max-width: 80%; word-break: break-word;">
-                          {text}
-                      </div>
-                  {/each}
-              </div>
       
-              <!-- Message Input -->
-              <div class="flex">
-                  <input
-                      class="flex-grow bg-gray-700 text-white p-2 rounded-l outline-none focus:ring-2 focus:ring-blue-500"
-                      bind:value={newMessage}
-                      on:keydown={handleEnterKey}
-                      placeholder="Type a message..."
-                  />
-                  <button
-                      class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-r"
-                      on:click={sendMessage}
-                  >
-                      Send
-                  </button>
+      <div class="{activeTab === 'chat' ? '' : 'hidden'} p-4">
+        <div class="glass-panel rounded-lg p-4">
+          <!-- Chat Messages Container -->
+          <div class="custom-scrollbar overflow-auto h-64 md:h-80 mb-4" id="chat_content">
+            {#each $messages as {id, text} (id)}
+              {@const formattedMessage = formatFrequencyMessage(text)}
+              <div class="flex mb-2">
+                <div class="glass-message p-2 md:p-3 rounded-lg bg-gray-600 bg-opacity-20 max-w-full md:max-w-3/4">
+                  <p class="text-xs text-gray-400 mb-1 text-left">{formattedMessage.timestamp}</p>
+                  <p class="text-white text-xs md:text-sm break-words">
+                    <span class="font-semibold">{formattedMessage.username}: </span>
+                    {#if formattedMessage.isFormatted}
+                      {formattedMessage.beforeFreq}
+                      <a href="#" class="text-blue-300 hover:underline" on:click|preventDefault={() => handleFrequencyClick(formattedMessage.frequency, formattedMessage.demodulation)}>
+                        {(formattedMessage.frequency / 1000).toFixed(3)} kHz ({formattedMessage.demodulation})
+                      </a>
+                      {formattedMessage.afterFreq}
+                    {:else}
+                      {formattedMessage.text}
+                    {/if}
+                  </p>
+                </div>
               </div>
+            {/each}   
           </div>
+          <!-- Message Input and Buttons -->
+          <div class="flex flex-col lg:flex-row items-stretch space-y-2 lg:space-y-0 lg:space-x-2">
+            <input
+              class="w-full glass-input chat-input text-white p-2 rounded-lg outline-none"
+              bind:value={newMessage}
+              on:keydown={handleEnterKey}
+              placeholder="Type a message..."
+            />
+            <div class="flex space-x-2 lg:w-auto">
+              <button
+                class="glass-button chat-button text-white font-bold py-2 px-4 rounded-lg flex items-center justify-center flex-1 lg:flex-none lg:w-32"
+                on:click={sendMessage}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor">
+                  <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
+                </svg>
+                Send
+              </button>
+              <button
+                class="glass-button chat-button text-white font-bold py-2 px-4 rounded-lg flex items-center justify-center flex-1 lg:flex-none lg:w-32"
+                on:click={pasteFrequency}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor">
+                  <path d="M8 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z" />
+                  <path d="M6 3a2 2 0 00-2 2v11a2 2 0 002 2h8a2 2 0 002-2V5a2 2 0 00-2-2 3 3 0 01-3 3H9a3 3 0 01-3-3z" />
+                </svg>
+                Paste Freq
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
     
       
@@ -1259,6 +1356,9 @@
   </div>
 </main>
 
+<svelte:head>
+  <link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
+</svelte:head>
 
 <style global lang="postcss">
   :root {
@@ -1327,44 +1427,243 @@
   }
 
 
+  /* Scrollbar styles for webkit browsers */
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 12px;
+    background-color: transparent;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background-color: rgba(255, 255, 255, 0.05);
+    border-radius: 10px;
+    margin: 5px 0;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background-color: rgba(255, 255, 255, 0.2);
+    border-radius: 10px;
+    border: 3px solid rgba(0, 0, 0, 0.2);
+    background-clip: padding-box;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(255, 255, 255, 0.3);
+  }
+
+  /* Scrollbar styles for Firefox */
+  .custom-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.2) rgba(255, 255, 255, 0.05);
+  }
+
+  /* Container styles to ensure proper scrollbar positioning */
+  .scrollbar-container {
+    padding-right: 12px; /* Match scrollbar width */
+    box-sizing: content-box;
+  }
+
+
+  .bg-custom-dark {
+    background: linear-gradient(135deg, #1a1c2e, #2a2c3e);
+  }
+
+  .glass-button {
+    background: rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    transition: all 0.3s ease;
+  }
+  
+  .glass-button:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.2);
+  }
+  
+  .glass-slider {
+    -webkit-appearance: none;
+    width: 100%;
+    height: 6px;
+    background: rgba(255, 255, 255, 0.1);
+    outline: none;
+    border-radius: 3px;
+  }
+  
+  .glass-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    background: rgba(255, 255, 255, 0.8);
+    cursor: pointer;
+    border-radius: 50%;
+  }
+
+  #sMeter
+  {
+    width:300px;
+    height:40px;
+    background-color: transparent;
+    display:block;
+    margin-left: 30px;
+    margin-top: 5px;
+  }
 
   .smeter-container {
+    background-color: black;
+    padding: 10px;
+    border-radius: 5px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
     width: 310px;
     padding: 15px;
     background: #111;
     border-radius: 5px;
     position: relative;
-    margin-bottom: 10px;
+    margin: 0 auto;
+    box-shadow: 0 0 10px rgb(83 83 83 / 30%);
+    font-family: 'VT323', monospace;
   }
-  .smeter-dots {
+  
+  .glass-slider::-moz-range-thumb {
+    width: 18px;
+    height: 18px;
+    background: rgba(255, 255, 255, 0.8);
+    cursor: pointer;
+    border-radius: 50%;
+  }
+
+  .glass-message {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    transition: background-color 0.3s;
+  }
+
+  .glass-message:hover {
+    background: rgba(255, 255, 255, 0.1);
+  }
+
+  .glass-panel {
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    transition: all 0.3s ease;
+  }
+
+  .glass-panel:hover {
+    background: rgba(255, 255, 255, 0.15);
+    transform: translateY(-5px);
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+  }
+
+  .glass-input {
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(5px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+  }
+
+  .control-group {
     display: flex;
-    justify-content: space-between;
+    justify-content: center;
+    align-items: center;
     width: 100%;
+    max-width: 400px;
+    margin: 0 auto;
   }
-  .dot {
-    background: #555;
-    width: 5px;
-    height: 20px;
-    margin: 0 1px;
-    transition: background-color 0.5s ease-in-out;
-    border-radius: 1px;
+
+  .slider-container {
+    flex-grow: 1;
+    margin: 0 15px;
+    width: 200px;
   }
-  .dot.active {
-    background-color: rgb(0, 140, 255); /* Blue for signals up to S9 */
+
+  .value-display {
+    width: 50px;
+    text-align: right;
   }
-  .dot.over-s9 {
-    background-color: rgb(238, 31, 31); /* Red for signals over S9 */
+  
+  .glass-button.active {
+    background: linear-gradient(135deg, rgba(50, 50, 80, 0.8), rgba(60, 50, 80, 0.8));
+    border-color: rgba(120, 100, 180, 0.4);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2), inset 0 1px 2px rgba(150, 130, 200, 0.1);
   }
-  .smeter-labels {
-    display: flex;
-    justify-content: space-between;
-    color: #fff;
-    font-family: sans-serif;
-    font-size: 10px;
-    padding-top: 5px;
+
+  .glass-select {
+    background: rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    transition: all 0.3s ease;
+  }
+  
+  .glass-select:focus {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(99, 102, 241, 0.5);
+    box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.25);
+  }
+  
+  .glass-select option {
+    background-color: #2a2c3e;
+  }
+
+  .glass-toggle-button {
+    background: rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    transition: all 0.3s ease;
+    min-width: 48px;
+  }
+  
+  .glass-toggle-button:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.2);
+  }
+  
+  .glass-toggle-button.active {
+    background: rgba(16, 185, 129, 0.2);
+    border-color: rgba(16, 185, 129, 0.4);
+  }
+
+  .slide-transition {
+    transition: max-height 300ms cubic-bezier(0.23, 1, 0.32, 1);
+    overflow: hidden;
   }
 
 
+
+  .chat-input {
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    background-color: rgba(255, 255, 255, 0.1) !important;
+    color: white !important;
+    border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  }
+
+  .chat-input::placeholder {
+    color: rgba(255, 255, 255, 0.5);
+  }
+
+  .chat-button {
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    background-color: rgba(255, 255, 255, 0.1) !important;
+    color: white !important;
+    border: 1px solid rgba(255, 255, 255, 0.2) !important;
+    font-size: 14px;
+  }
+
+  @supports (-webkit-touch-callout: none) {
+    .chat-input,
+    .chat-button {
+      background-color: rgba(255, 255, 255, 0.1) !important;
+      color: white !important;
+      border: 1px solid rgba(255, 255, 255, 0.2) !important;
+    }
+  }
 
 
 
