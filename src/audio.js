@@ -8,6 +8,8 @@ import { AudioContext, ConvolverNode, IIRFilterNode, GainNode, AudioBuffer, Audi
 import { BiquadFilterNode } from 'standardized-audio-context';
 export default class SpectrumAudio {
   constructor(endpoint) {
+
+    
     this.endpoint = endpoint
 
     this.playAmount = 0
@@ -89,43 +91,94 @@ export default class SpectrumAudio {
       this.resolvePromise()
       return
     }
-
+  
     this.audioStartTime = this.audioCtx.currentTime
     this.playTime = this.audioCtx.currentTime + 0.1
     this.playStartTime = this.audioCtx.currentTime
-
+  
     this.decoder = createDecoder(settings.audio_compression, this.audioMaxSps, this.trueAudioSps, this.audioOutputSps)
     
-    // inputNode -> fmDeemphNode -> convolverNode -> gainNode -> audioCtx.destination
+    // Bass boost (lowshelf filter)
+    this.bassBoost = new BiquadFilterNode(this.audioCtx)
+    this.bassBoost.type = 'lowshelf'
+    this.bassBoost.frequency.value = 200  // Frequenz etwas reduziert
+    this.bassBoost.Q.value = 0.5
+    this.bassBoost.gain.value = 25  // Verstärkung erhöht
+  
+    // Bandpass filter for speech enhancement
+    this.bandpass = new BiquadFilterNode(this.audioCtx)
+    this.bandpass.type = 'peaking'  // Geändert zu 'peaking' für sanftere Anpassung
+    this.bandpass.frequency.value = 1500
+    this.bandpass.Q.value = 1.5
+    this.bandpass.gain.value = 6  // Leichte Verstärkung der Mitten
 
-    this.lowPassFilter = new BiquadFilterNode(this.audioCtx)
-    // Set filter type to lowpass
-    this.lowPassFilter.type = 'lowshelf';
-    this.lowPassFilter.frequency.value = 200;
-    this.lowPassFilter.Q.value = 1;
-    this.lowPassFilter.gain.value = 20;
-    this.lowPassFilter.connect(this.audioCtx.destination)
-
-    this.gainNode = new GainNode(this.audioCtx)
-    this.setGain(10)
-    this.gainNode.connect(this.lowPassFilter)
-
+  
+    // High-pass filter
+    this.highPass = new BiquadFilterNode(this.audioCtx)
+    this.highPass.type = 'highpass'
+    this.highPass.frequency.value = 80  // Frequenz reduziert für mehr Bass
+    this.highPass.Q.value = 0.5
+    
+    // Convolver node for additional filtering
     this.convolverNode = new ConvolverNode(this.audioCtx)
     this.setLowpass(15000)
-    this.convolverNode.connect(this.gainNode)
-
-
-    
-
-
-
-
-
+  
+    // Gain node
+    this.gainNode = new GainNode(this.audioCtx)
+    this.setGain(10)
+  
+    // Connect nodes in the correct order
+    this.convolverNode.connect(this.highPass)
+    this.highPass.connect(this.bandpass)
+    this.bandpass.connect(this.bassBoost)
+    this.bassBoost.connect(this.gainNode)
+    this.gainNode.connect(this.audioCtx.destination)
+  
     this.audioInputNode = this.convolverNode
-
-    // this.wbfmStereo = new LiquidDSP.WBFMStereo(this.trueAudioSps)
-
+  
+    // Initial filter update based on current demodulation
+    this.updateFilters()
+  
     this.resolvePromise(settings)
+  }
+  
+  updateFilters() {
+    switch (this.demodulation) {
+      case 'USB':
+      case 'LSB':
+        this.bassBoost.gain.value = 15
+        this.bandpass.frequency.value = 1800
+        this.bandpass.Q.value = 1.2
+        this.bandpass.gain.value = 8  // Leicht erhöht für mehr Präsenz
+        this.highPass.frequency.value = 80
+        this.setLowpass(3000)
+        break
+      case 'CW-U':
+      case 'CW-L':
+        this.bassBoost.gain.value = 0
+        this.bandpass.frequency.value = 700
+        this.bandpass.Q.value = 5
+        this.bandpass.gain.value = 10
+        this.highPass.frequency.value = 500
+        this.setLowpass(1000)
+        break
+      case 'AM':
+        this.bassBoost.gain.value = 20
+        this.bandpass.frequency.value = 1500
+        this.bandpass.Q.value = 1
+        this.bandpass.gain.value = 6
+        this.highPass.frequency.value = 50
+        this.setLowpass(4500)
+        break
+      case 'FM':
+        this.bassBoost.gain.value = 25
+        this.bandpass.frequency.value = 1500
+        this.bandpass.Q.value = 0.5
+        this.bandpass.gain.value = 4
+        this.highPass.frequency.value = 30
+        this.setLowpass(15000)
+        break
+    }
   }
 
   setFIRFilter(fir) {
@@ -299,6 +352,7 @@ export default class SpectrumAudio {
   setAudioDemodulation(demodulation) {
 
     this.demodulation = demodulation
+    this.updateFilters()
     this.audioSocket.send(JSON.stringify({
       cmd: 'demodulation',
       demodulation: demodulation
@@ -470,40 +524,46 @@ export default class SpectrumAudio {
         let locators = this.extractGridLocators(message.text);
   
         if(locators.length > 0) {
-          // Assuming the first locator is the target location
           let targetLocation = this.gridSquareToLatLong(locators[0]);
           let distance = this.calculateDistance(baseLocation[0], baseLocation[1], targetLocation[0], targetLocation[1]);
-
+  
           if (distance > this.farthestDistance) {
             this.farthestDistance = distance;
-            document.getElementById('farthest-distance').textContent = ` - Farthest Distance: ${this.farthestDistance.toFixed(2)} km`;
+            document.getElementById('farthest-distance').textContent = `Farthest Distance: ${this.farthestDistance.toFixed(2)} km`;
           }
   
           const messageDiv = document.createElement('div');
-          messageDiv.classList.add('p-2', 'border-b', 'border-gray-800');
+          messageDiv.classList.add('glass-message', 'p-2', 'rounded-lg', 'text-sm', 'flex', 'justify-between', 'items-center');
   
-          let messageContent = `Message: ${message.text}`;
+          // Message content
+          const messageContent = document.createElement('div');
+          messageContent.classList.add('flex-grow');
+          messageContent.textContent = message.text;
+          messageDiv.appendChild(messageContent);
   
-          messageContent += `, Locators: `;
+          // Locators and distance
+          const infoDiv = document.createElement('div');
+          infoDiv.classList.add('flex', 'flex-col', 'items-end', 'ml-2', 'text-xs');
   
-          // Add the locator content before appending locator links
-          const locatorsContent = document.createTextNode(messageContent);
-          messageDiv.appendChild(locatorsContent);
-  
-          // Append locators as clickable links
+          // Locators
+          const locatorsDiv = document.createElement('div');
           locators.forEach((locator, index) => {
             const locatorLink = document.createElement('a');
             locatorLink.href = `https://www.levinecentral.com/ham/grid_square.php?&Grid=${locator}&Zoom=13&sm=y`;
-            locatorLink.style = "color:#ffdc00;"
+            locatorLink.classList.add('text-yellow-300', 'hover:underline');
             locatorLink.textContent = locator;
-            locatorLink.target = "_blank"; // Open in new tab
-            messageDiv.appendChild(document.createTextNode(index > 0 ? ', ' : ''));
-            messageDiv.appendChild(locatorLink);
+            locatorLink.target = "_blank";
+            if (index > 0) locatorsDiv.appendChild(document.createTextNode(', '));
+            locatorsDiv.appendChild(locatorLink);
           });
+          infoDiv.appendChild(locatorsDiv);
   
-          // Append distance information
-          const distanceText = document.createTextNode(`, Distance: ${distance.toFixed(2)} km`);
-          messageDiv.appendChild(distanceText);
+          // Distance
+          const distanceDiv = document.createElement('div');
+          distanceDiv.textContent = `${distance.toFixed(2)} km`;
+          infoDiv.appendChild(distanceDiv);
+  
+          messageDiv.appendChild(infoDiv);
   
           messagesListDiv.appendChild(messageDiv);
         }
@@ -514,7 +574,6 @@ export default class SpectrumAudio {
       }, 500);
     }
   }
-  
 
   // FT8 END
 
