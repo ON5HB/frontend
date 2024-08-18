@@ -420,6 +420,7 @@
   let NREnabled = false
   let NBEnabled = false
   let ANEnabled = false
+  let CTCSSSupressEnabled = false
   function handleNRChange () {
     NREnabled = !NREnabled;
     audio.decoder.set_nr(NREnabled)
@@ -432,6 +433,10 @@
   function handleANChange () {
     ANEnabled = !ANEnabled;
     audio.decoder.set_an(ANEnabled)
+  }
+  function handleCTCSSChange () {
+    CTCSSSupressEnabled = !CTCSSSupressEnabled;
+    audio.setCTCSSFilter(CTCSSSupressEnabled);
   }
 
   // Regular updating UI elements:
@@ -914,7 +919,7 @@
               <div class="control-group">
                 <button class="glass-button text-white font-bold py-2 px-4 rounded-full w-12 h-12 flex items-center justify-center"
                         on:click="{handleMuteChange}">
-                  {mute ? 'ðŸ”‡' : 'ðŸ”Š'}
+                  {mute ? '🔇' : '🔊'}
                 </button>
                 <div class="slider-container">
                   <input type="range" bind:value={volume} on:input={handleVolumeChange} 
@@ -936,6 +941,12 @@
                 </div>
                 <span class="value-display text-gray-300">{squelch}db</span>
               </div>
+              
+
+               <!-- SMeter -->
+              <div class="smeter-container">
+                <canvas id="sMeter" width="300" height="40"></canvas>
+              </div>
             
               <!-- Bandwidth Display and Adjustment -->
               <div class="mt-4">
@@ -952,9 +963,7 @@
               </div>
 
 
-              <div class="smeter-container">
-                <canvas id="sMeter" width="300" height="40"></canvas>
-              </div>
+           
               <!-- Power and Peak Display
               <div class="relative pt-1 w-full max-w-xs mx-auto">
                 <div class="overflow-hidden h-4 text-xs flex rounded bg-gray-700">
@@ -988,6 +997,12 @@
                 on:click="{handleANChange}"
               >
                 AN
+              </button>
+              <button 
+                class={`glass-toggle-button text-gray-200 font-medium py-2 px-3 rounded-lg transition duration-300 ease-in-out ${CTCSSSupressEnabled ? 'active' : ''}`}
+                on:click="{handleCTCSSChange}"
+              >
+                CTCSS
               </button>
             </div>
            

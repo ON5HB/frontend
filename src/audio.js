@@ -32,20 +32,32 @@ export default class SpectrumAudio {
     this.squelch = false
     this.squelchThreshold = 0
     this.power = 1
+    this.ctcss = false
+     // Remove the element with id startaudio from the DOM
+      
 
-    // for chrome
-    const userGestureFunc = () => {
-      if (this.audioCtx && this.audioCtx.state !== 'running') {
-        this.audioCtx.resume()
-      }
-      // Remove the element with id startaudio from the DOM
-      const startaudio = document.getElementById('startaudio')
+    if (this.audioCtx && this.audioCtx.state == 'running') {
+      startaudio = document.getElementById('startaudio')
       if (startaudio) {
         startaudio.remove()
       }
-      document.documentElement.removeEventListener('mousedown', userGestureFunc)
+    }else
+    {
+      // for chrome
+      const userGestureFunc = () => {
+        if (this.audioCtx && this.audioCtx.state !== 'running') {
+          this.audioCtx.resume()
+        }
+        // Remove the element with id startaudio from the DOM
+        const startaudio = document.getElementById('startaudio')
+        if (startaudio) {
+          startaudio.remove()
+        }
+        document.documentElement.removeEventListener('mousedown', userGestureFunc)
+      }
+      document.documentElement.addEventListener('mousedown', userGestureFunc)
     }
-    document.documentElement.addEventListener('mousedown', userGestureFunc)
+    
 
     this.mode = 0
     this.d = 10
@@ -175,7 +187,15 @@ export default class SpectrumAudio {
         this.bandpass.frequency.value = 1500
         this.bandpass.Q.value = 0.5
         this.bandpass.gain.value = 4
-        this.highPass.frequency.value = 30
+        if(this.ctcss)
+        {
+          this.highPass.frequency.value = 300
+          
+        }else
+        {
+          this.highPass.frequency.value = 30
+        }
+        
         this.setLowpass(15000)
         break
     }
@@ -394,6 +414,12 @@ export default class SpectrumAudio {
       cmd: 'mute',
       mute: mute
     }))
+  }
+
+  setCTCSSFilter(ctcss)
+  {
+    this.ctcss = ctcss;
+    this.updateFilters();
   }
 
   setSquelch(squelch) {
