@@ -115,20 +115,20 @@ export default class SpectrumAudio {
     this.bassBoost.type = 'lowshelf'
     this.bassBoost.frequency.value = 200  // Frequenz etwas reduziert
     this.bassBoost.Q.value = 0.5
-    this.bassBoost.gain.value = 25  // Verstärkung erhöht
+    this.bassBoost.gain.value = 25  // VerstÃ¤rkung erhÃ¶ht
   
     // Bandpass filter for speech enhancement
     this.bandpass = new BiquadFilterNode(this.audioCtx)
-    this.bandpass.type = 'peaking'  // Geändert zu 'peaking' für sanftere Anpassung
+    this.bandpass.type = 'peaking'  // GeÃ¤ndert zu 'peaking' fÃ¼r sanftere Anpassung
     this.bandpass.frequency.value = 1500
     this.bandpass.Q.value = 1.5
-    this.bandpass.gain.value = 6  // Leichte Verstärkung der Mitten
+    this.bandpass.gain.value = 6  // Leichte VerstÃ¤rkung der Mitten
 
   
     // High-pass filter
     this.highPass = new BiquadFilterNode(this.audioCtx)
     this.highPass.type = 'highpass'
-    this.highPass.frequency.value = 80  // Frequenz reduziert für mehr Bass
+    this.highPass.frequency.value = 80  // Frequenz reduziert fÃ¼r mehr Bass
     this.highPass.Q.value = 0.5
     
     // Convolver node for additional filtering
@@ -161,7 +161,7 @@ export default class SpectrumAudio {
         this.bassBoost.gain.value = 15
         this.bandpass.frequency.value = 1800
         this.bandpass.Q.value = 1.2
-        this.bandpass.gain.value = 8  // Leicht erhöht für mehr Präsenz
+        this.bandpass.gain.value = 8  // Leicht erhÃ¶ht fÃ¼r mehr PrÃ¤senz
         this.highPass.frequency.value = 80
         this.setLowpass(3000)
         break
@@ -401,6 +401,7 @@ export default class SpectrumAudio {
   }
 
   setGain(gain) {
+    gain /= 4;
     this.gain = gain
     this.gainNode.gain.value = gain
   }

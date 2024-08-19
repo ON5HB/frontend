@@ -1,5 +1,6 @@
 <script>
-  import { onDestroy, onMount } from 'svelte'
+  import { onDestroy, onMount, tick } from 'svelte'
+  import { fade, fly } from 'svelte/transition';
   import copy from 'copy-to-clipboard'
   import { RollingMax } from 'efficient-rolling-stats'
   import { writable } from "svelte/store";
@@ -32,6 +33,7 @@
   let bandwidth
   let link
   var chatContentDiv;
+  let zoomLvl;
 
   let activeTab = 'audio'; // Default active tab
 
@@ -102,9 +104,15 @@
   // Sidebar controls for waterfall and spectrum analyzer
   let waterfallDisplay = true
   let spectrumDisplay = true
+  let biggerWaterfall = false
   function handleSpectrumChange () {
     spectrumDisplay = !spectrumDisplay
     waterfall.setSpectrum(spectrumDisplay)
+  }
+
+  function handleWaterfallSizeChange () {
+    biggerWaterfall = !biggerWaterfall
+    waterfall.setWaterfallBig(biggerWaterfall)
   }
   function handleWaterfallChange () {
     waterfall.setWaterfall(waterfallDisplay)
@@ -255,8 +263,9 @@
     updateLink()
   }
 
-  // Waterfall magnification controls in the sidebar
+  // Waterfall magnification controls 
   function handleWaterfallMagnify (e, type) {
+    
     let [l, m, r] = audio.getAudioRange()
     const [waterfallL, waterfallR] = waterfall.getWaterfallRange()
     const offset = (m - waterfallL) / (waterfallR - waterfallL) * waterfall.canvasWidth
@@ -586,8 +595,83 @@
     }*/
   }
 
+  let currentStep = 0;
+  let showTutorial = false;
+  let highlightedElement = null;
+
+  const tutorialSteps = [
+    { selector: '#demodulator-select', content: 'Welcome to PhantomSDR - This is the Tutorial.' },
+    { selector: '#demodulator-select', content: 'Use this Select Box to change the Demodulation Mode.' },
+    { selector: '#volume-slider', content: 'Use this Slider to change the Volume.' },
+    { selector: '#squelch-slider', content: 'Use this Slider to change the Squelch.' },
+    { selector: '#smeter-tut', content: 'This so called S-Meter shows you the Signal Strength.' },
+    { selector: '#bandwidth-display', content: 'This Section shows your current Demodulation Bandwidth and lets you change it.' },
+    { selector: '#moreoptions', content: 'These options allow you to enable things like CTCSS Supression, Noise Reduction and more.' },
+    { selector: '#waterfall-button', content: 'Now we navigate to the Waterfall Tab.' },
+    { selector: '#zoom-controls', content: 'Use these buttons to zoom in and out of the waterfall display.' },
+    { selector: '#auto-adjust', content: 'Toggle automatic adjustment of the waterfall display.' },
+    { selector: '#spectrum-toggle', content: 'Turn the spectrum display on or off.' },
+    { selector: '#bigger-waterfall', content: 'Increase the size of the waterfall display.' },
+    { selector: '#colormap-select', content: 'Choose different color schemes for the waterfall.' },
+    { selector: '#brightness-controls', content: 'Adjust the brightness levels of the waterfall display.' },
+  ];
+
+  async function initTutorial() {
+    if (!localStorage.getItem('TutorialComplete')) {
+      await tick();
+      const allElementsPresent = tutorialSteps.every(step => document.querySelector(step.selector));
+      if (allElementsPresent) {
+        showTutorial = true;
+        updateHighlightedElement();
+        updateHighlightedElement();
+      } else {
+        console.warn('Some tutorial elements are missing. Skipping tutorial.');
+        localStorage.setItem('TutorialComplete', 'true');
+      }
+    }
+  }
+
+  function updateHighlightedElement() {
+    const { selector } = tutorialSteps[currentStep];
+    highlightedElement = selector ? document.querySelector(selector) : null;
+  }
+
+  async function nextStep() {
+    if (currentStep < tutorialSteps.length - 1) {
+      currentStep += 1;
+      await tick();
+      updateHighlightedElement();
+      if(currentStep == 7)
+    {
+      activeTab = 'waterfall';
+    }
+    } else {
+      endTutorial();
+    }
+  }
+
+  function endTutorial() {
+    showTutorial = false;
+    localStorage.setItem('TutorialComplete', 'true');
+  }
+
+  initTutorial();
+
+
+
   let backendPromise;
   onMount(async () => {
+    if (!localStorage.getItem('TutorialComplete')) {
+      await tick();
+      const allElementsPresent = tutorialSteps.slice(1).every(step => document.querySelector(step.selector));
+      if (allElementsPresent) {
+        showTutorial = true;
+        await updateHighlightedElement();
+      } else {
+        console.warn('Some tutorial elements are missing. Skipping tutorial.');
+        localStorage.setItem('TutorialComplete', 'true');
+      }
+    }
     // Disable all the input to prevent clicking
     [...document.getElementsByTagName('button'), ...document.getElementsByTagName('input')].forEach(element => {
       element.disabled = true
@@ -688,11 +772,16 @@
       messages.update(currentMessages => [...currentMessages, receivedMessageObject]);
     }
     scrollToBottom();
+
+  
+
   };
 
 
 
   })
+
+
 
  
 
@@ -834,9 +923,9 @@
 
   <main class="custom-scrollbar">
   <div class="h-screen overflow-hidden flex flex-col">
-    <div class="w-full  sm:w-1/2 md:w-2/3 lg:w-3/4 sm:transition-all sm:ease-linear sm:duration-100 cursor-crosshair overflow-hidden" style="height: 400px; width:100%;" >
+    <div class="w-full  sm:w-1/2 md:w-2/3 lg:w-3/4 sm:transition-all sm:ease-linear sm:duration-100 cursor-crosshair overflow-hidden" style=" width:100%;" >
       <FrequencyInput bind:this={frequencyInputComponent} on:change={handleFrequencyChange}></FrequencyInput>
-      <canvas class="w-full bg-black peer {spectrumDisplay ? 'max-h-40' : 'max-h-0'}" bind:this={spectrumCanvas}
+      <canvas  class="w-full bg-black peer {spectrumDisplay ? 'max-h-40' : 'max-h-0'}" bind:this={spectrumCanvas}
         on:wheel={handleWaterfallWheel}
         on:click={passbandTunerComponent.handlePassbandClick}
       width="1024" height="128"></canvas>
@@ -852,7 +941,7 @@
         on:wheel={handleWaterfallWheel}
         on:click={passbandTunerComponent.handlePassbandClick}
       width="1024" height="20"></canvas>
-      <div class="w-full peer overflow-hidden"><canvas class="w-full bg-black {waterfallDisplay ? 'block' : 'hidden'}" bind:this={waterfallCanvas}
+      <div style="image-rendering:pixelated;" class="w-full peer overflow-hidden"><canvas class="w-full bg-black {waterfallDisplay ? 'block' : 'hidden'}" bind:this={waterfallCanvas}
         use:pinch
         on:pinchstart={handleWaterfallPinchStart}
         on:pinchmove={handleWaterfallPinchMove}
@@ -872,10 +961,46 @@
 
     <div class="min-h-screen bg-custom-dark text-gray-200" style="padding-top: 10px;">
       <div class="max-w-screen-lg mx-auto">
+
+        {#if showTutorial}
+          <div 
+            class="fixed inset-0 bg-black bg-opacity-70 z-50 flex items-center justify-center"
+            on:click={nextStep}
+            transition:fade="{{ duration: 300 }}"
+          >
+            {#key currentStep}
+              {#if highlightedElement}
+                <div
+                  class="absolute bg-blue-500 bg-opacity-20 border-2 border-blue-500 transition-all duration-300 ease-in-out pointer-events-none"
+                  style="
+                    top: {highlightedElement.offsetTop}px;
+                    left: {highlightedElement.offsetLeft}px;
+                    width: {highlightedElement.offsetWidth}px;
+                    height: {highlightedElement.offsetHeight}px;
+                  "
+                  transition:scale="{{ duration: 300, start: 0.95 }}"
+                ></div>
+              {/if}
+            {/key}
+            <div
+              class="fixed bottom-4 left-1/2 transform -translate-x-1/2 bg-gray-900 text-white p-6 rounded-lg shadow-lg max-w-md text-center backdrop-filter backdrop-blur-lg bg-opacity-80 border border-gray-700"
+              transition:fly="{{ y: 50, duration: 300 }}"
+            >
+              <p class="mb-4 text-lg">{tutorialSteps[currentStep].content}</p>
+              <button
+                class="px-6 py-2 bg-blue-600 text-white rounded-full hover:bg-blue-700 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50"
+                on:click|stopPropagation={nextStep}
+              >
+                {currentStep < tutorialSteps.length - 1 ? 'Next' : 'Finish'}
+              </button>
+            </div>
+          </div>
+        {/if}
+
         <!-- Tabs -->
         <ul class="flex flex-wrap justify-center cursor-pointer" style="padding-bottom: 15px;">
           <li class={`glass-button mx-1 my-1 md:mx-2 px-3 md:px-4 py-1.5 md:py-2 text-xs md:text-sm rounded-lg ${activeTab === 'audio' ? 'active' : ''} text-gray-300`} on:click="{() => setActiveTab('audio')}">Audio</li>
-          <li class={`glass-button mx-1 my-1 md:mx-2 px-3 md:px-4 py-1.5 md:py-2 text-xs md:text-sm rounded-lg ${activeTab === 'waterfall' ? 'active' : ''} text-gray-300`} on:click="{() => setActiveTab('waterfall')}">Waterfall</li>
+          <li id="waterfall-button" class={`glass-button mx-1 my-1 md:mx-2 px-3 md:px-4 py-1.5 md:py-2 text-xs md:text-sm rounded-lg ${activeTab === 'waterfall' ? 'active' : ''} text-gray-300`} on:click="{() => setActiveTab('waterfall')}">Waterfall</li>
           <li class={`glass-button mx-1 my-1 md:mx-2 px-3 md:px-4 py-1.5 md:py-2 text-xs md:text-sm rounded-lg ${activeTab === 'bookmarks' ? 'active' : ''} text-gray-300`} on:click="{() => setActiveTab('bookmarks')}">Bookmarks</li>
           <li class={`glass-button mx-1 my-1 md:mx-2 px-3 md:px-4 py-1.5 md:py-2 text-xs md:text-sm rounded-lg ${activeTab === 'decoders' ? 'active' : ''} text-gray-300`} on:click="{() => setActiveTab('decoders')}">Decoders</li>
           <li class={`glass-button mx-1 my-1 md:mx-2 px-3 md:px-4 py-1.5 md:py-2 text-xs md:text-sm rounded-lg ${activeTab === 'statistics' ? 'active' : ''} text-gray-300`} on:click="{() => setActiveTab('statistics')}">Statistics</li>
@@ -916,7 +1041,7 @@
             
             <div class="flex flex-col space-y-6 mt-6">
               <!-- Mute and Volume Control -->
-              <div class="control-group">
+              <div class="control-group" id="volume-slider">
                 <button class="glass-button text-white font-bold py-2 px-4 rounded-full w-12 h-12 flex items-center justify-center"
                         on:click="{handleMuteChange}">
                   {mute ? '🔇' : '🔊'}
@@ -929,7 +1054,7 @@
               </div>
             
               <!-- Squelch Enable and Level -->
-              <div class="control-group">
+              <div class="control-group" id="squelch-slider">
                 <button class="glass-button text-white font-bold py-2 px-4 rounded-full w-12 h-12 flex items-center justify-center"
                         style="background: {squelchEnable ? 'rgba(16, 185, 129, 0.2)' : 'rgba(255, 255, 255, 0.05)'}"
                         on:click="{handleSquelchChange}">
@@ -944,12 +1069,12 @@
               
 
                <!-- SMeter -->
-              <div class="smeter-container">
+              <div class="smeter-container" id="smeter-tut">
                 <canvas id="sMeter" width="300" height="40"></canvas>
               </div>
             
               <!-- Bandwidth Display and Adjustment -->
-              <div class="mt-4">
+              <div class="mt-4" id="bandwidth-display">
                 <p class="text-gray-300 text-sm text-center mb-3">Bandwidth: {bandwidth} kHz</p>
                 <div class="flex justify-center items-center gap-2 flex-wrap">
                   {#each bandwithoffsets as bandwidthoffset (bandwidthoffset)}
@@ -979,7 +1104,7 @@
               
             </div>
 
-            <div class="flex justify-center gap-4 mt-4">
+            <div class="flex justify-center gap-4 mt-4" id="moreoptions">
               <button 
                 class={`glass-toggle-button text-gray-200 font-medium py-2 px-3 rounded-lg transition duration-300 ease-in-out ${NREnabled ? 'active' : ''}`}
                 on:click="{handleNRChange}"
@@ -1009,115 +1134,139 @@
         </div>
         <!--Audio Tab End-->
 
-        <!--Waterfall Tab Start-->
-        <div class="{activeTab === 'waterfall' ? '' : 'hidden'} p-4">
-          <div class="space-y-6">
-            <!-- Zoom Level -->
-            <div class="text-center mb-4">
-              <div class="flex flex-wrap justify-center gap-2 mt-2">
-                <button class="glass-button text-white font-bold py-2 px-3 rounded-lg flex items-center"
-                        on:click="{(e) => handleWaterfallMagnify(e, '+')}" title="Zoom in">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <circle cx="11" cy="11" r="8"/>
-                    <line x1="21" y1="21" x2="16.65" y2="16.65"/>
-                    <line x1="11" y1="8" x2="11" y2="14"/>
-                    <line x1="8" y1="11" x2="14" y2="11"/>
-                  </svg>
-                  <span class="text-sm">In</span>
-                </button>
-                <button class="glass-button text-white font-bold py-2 px-3 rounded-lg flex items-center"
-                        on:click="{(e) => handleWaterfallMagnify(e, '-')}" title="Zoom out">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <circle cx="11" cy="11" r="8"/>
-                    <line x1="21" y1="21" x2="16.65" y2="16.65"/>
-                    <line x1="8" y1="11" x2="14" y2="11"/>
-                  </svg>
-                  <span class="text-sm">Out</span>
-                </button>
-                <button class="glass-button text-white font-bold py-2 px-3 rounded-lg flex items-center"
-                        on:click="{(e) => handleWaterfallMagnify(e, 'max')}" title="Zoom to max">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
-                    <line x1="3" y1="12" x2="21" y2="12"/>
-                    <line x1="12" y1="3" x2="12" y2="21"/>
-                  </svg>
-                  <span class="text-sm">Max</span>
-                </button>
-                <button class="glass-button text-white font-bold py-2 px-3 rounded-lg flex items-center"
-                        on:click="{(e) => handleWaterfallMagnify(e, 'min')}" title="Zoom to min">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
-                    <line x1="8" y1="12" x2="16" y2="12"/>
-                  </svg>
-                  <span class="text-sm">Min</span>
-                </button>
-              </div>
-            </div>
+       <!--Waterfall Tab Start-->
+<div class="{activeTab === 'waterfall' ? '' : 'hidden'} p-4">
+  <div class="space-y-6" >
+    <!-- Zoom Level -->
+    <div class="text-center mb-4" >
+      <div class="flex flex-wrap justify-center gap-2 mt-2" id="zoom-controls"  >
+        <button class="glass-button text-white font-bold py-2 px-3 rounded-lg flex items-center"
+                on:click="{(e) => handleWaterfallMagnify(e, '+')}" title="Zoom in">
+          <svg xmlns="http://www.w3.org/2000/svg"  class="h-5 w-5 mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="11" cy="11" r="8"/>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            <line x1="11" y1="8" x2="11" y2="14"/>
+            <line x1="8" y1="11" x2="14" y2="11"/>
+          </svg>
+          <span class="text-sm">In</span>
+        </button>
+        <button class="glass-button text-white font-bold py-2 px-3 rounded-lg flex items-center"
+                on:click="{(e) => handleWaterfallMagnify(e, '-')}" title="Zoom out">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="11" cy="11" r="8"/>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            <line x1="8" y1="11" x2="14" y2="11"/>
+          </svg>
+          <span class="text-sm">Out</span>
+        </button>
+        <button class="glass-button text-white font-bold py-2 px-3 rounded-lg flex items-center"
+                on:click="{(e) => handleWaterfallMagnify(e, 'max')}" title="Zoom to max">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+            <line x1="3" y1="12" x2="21" y2="12"/>
+            <line x1="12" y1="3" x2="12" y2="21"/>
+          </svg>
+          <span class="text-sm">Max</span>
+        </button>
+        <button class="glass-button text-white font-bold py-2 px-3 rounded-lg flex items-center"
+                on:click="{(e) => handleWaterfallMagnify(e, 'min')}" title="Zoom to min">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+            <line x1="8" y1="12" x2="16" y2="12"/>
+          </svg>
+          <span class="text-sm">Min</span>
+        </button>
+      </div>
+    </div>
 
-            <!-- Automatic Waterfall Adjustment -->
-            <div class="flex justify-center items-center">
-              <span class="text-sm font-medium text-gray-300 mr-2">Auto Adjust:</span>
-              <button 
-                class={`glass-toggle-button text-gray-200 font-medium py-2 px-4 rounded-lg transition duration-300 ease-in-out ${autoAdjust ? 'active' : ''}`}
-                on:click="{() => handleAutoAdjust(!autoAdjust)}"
-              >
-                {autoAdjust ? 'ON' : 'OFF'}
-              </button>
-            </div>
+      <!-- Controls -->
+    <div class="space-y-4">
+      <!-- Automatic Waterfall Adjustment -->
+      <div class="flex justify-between items-center" id="auto-adjust">
+        <span class="text-sm font-medium text-gray-300" >Auto Adjust:</span>
+        <button
+          class={`glass-toggle-button text-gray-200 font-medium py-2 px-4 rounded-lg transition duration-300 ease-in-out ${autoAdjust ? 'active' : ''}`}
+          on:click="{() => handleAutoAdjust(!autoAdjust)}"
+        >
+          {autoAdjust ? 'ON' : 'OFF'}
+        </button>
+      </div>
 
-            <!-- Brightness Control -->
-            {#if !autoAdjust}
-            <div transition:slide="{{ duration: 300, easing: quintOut }}">
-              <label class="block text-sm font-medium text-gray-300 mb-2 text-center">Brightness</label>
-              <div class="space-y-4">
-                <div class="control-group">
-                  <span class="text-gray-300 text-sm w-10">Min:</span>
-                  <div class="slider-container">
-                    <input type="range" bind:value="{min_waterfall}" min="-100" max="255" step="1"
-                          class="glass-slider" on:input="{handleMinMove}">
-                  </div>
-                  <span class="value-display text-gray-300 w-10 text-right">{min_waterfall}</span>
-                </div>
-                <div class="control-group">
-                  <span class="text-gray-300 text-sm w-10">Max:</span>
-                  <div class="slider-container">
-                    <input type="range" bind:value="{max_waterfall}" min="0" max="255" step="1"
-                          class="glass-slider" on:input="{handleMaxMove}">
-                  </div>
-                  <span class="value-display text-gray-300 w-10 text-right">{max_waterfall}</span>
-                </div>
-              </div>
-            </div>
-          {/if}
+      <!-- Spectrum Toggle -->
+      <div class="flex justify-between items-center" id="spectrum-toggle">
+        <span class="text-sm font-medium text-gray-300" >Spectrum:</span>
+        <button
+          class={`glass-toggle-button text-gray-200 font-medium py-2 px-4 rounded-lg transition duration-300 ease-in-out ${spectrumDisplay ? 'active' : ''}`}
+          on:click="{handleSpectrumChange}"
+        >
+          {spectrumDisplay ? 'ON' : 'OFF'}
+        </button>
+      </div>
 
-          <!-- Colormap Control -->
-          <div class="flex justify-center items-center">
-            <span class="text-sm font-medium text-gray-300 mr-2">Colormap:</span>
-            <div class="relative inline-block w-48">
-              <select 
-                id="colormap-select" 
-                bind:value={currentColormap} 
-                on:change="{handleWaterfallColormapSelect}" 
-                class="glass-select block w-full pl-3 pr-10 py-2 text-sm rounded-lg text-gray-200 appearance-none focus:outline-none"
-              >
-                {#each availableColormaps as colormap}
-                  <option value="{colormap}">{colormap}</option>
-                {/each}
-              </select>
-              <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-400">
-                <svg class="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
-                  <path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" />
-                </svg>
-              </div>
-            </div>
-          </div>
+      <!-- Bigger Waterfall Toggle -->
+      <div class="flex justify-between items-center" id="bigger-waterfall">
+        <span class="text-sm font-medium text-gray-300" >Bigger Waterfall:</span>
+        <button
+          class={`glass-toggle-button text-gray-200 font-medium py-2 px-4 rounded-lg transition duration-300 ease-in-out ${biggerWaterfall ? 'active' : ''}`}
+          on:click="{handleWaterfallSizeChange}"
+        >
+          {biggerWaterfall ? 'ON' : 'OFF'}
+        </button>
+      </div>
 
+      <!-- Colormap Control -->
+      <div class="mt-6" id="colormap-select">
+        <span class="text-sm font-medium text-gray-300 block mb-2">Colormap:</span>
+        <div class="relative inline-block w-48">
+          <select
             
-
-
+            bind:value={currentColormap}
+            on:change="{handleWaterfallColormapSelect}"
+            class="glass-select block w-full pl-3 pr-10 py-2 text-sm rounded-lg text-gray-200 appearance-none focus:outline-none"
+          >
+            {#each availableColormaps as colormap}
+              <option value="{colormap}">{colormap}</option>
+            {/each}
+          </select>
+          <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-400">
+            <svg class="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
+              <path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" />
+            </svg>
           </div>
         </div>
-        <!--Waterfall Tab End-->
+      </div>
+
+      <!-- Brightness Control -->
+      {#if !autoAdjust}
+        <div id="brightness-controls" transition:slide="{{ duration: 300, easing: quintOut }}" class="mt-6">
+          <label class="block text-sm font-medium text-gray-300 mb-2">Brightness</label>
+          <div class="space-y-4">
+            <div class="flex items-center justify-between">
+              <span class="text-gray-300 text-sm w-10">Min:</span>
+              <div class="slider-container w-32 mx-4">
+                <input  type="range" bind:value="{min_waterfall}" min="-100" max="255" step="1"
+                       class="glass-slider w-full" on:input="{handleMinMove}">
+              </div>
+              <span class="value-display text-gray-300 w-10 text-right">{min_waterfall}</span>
+            </div>
+            <div class="flex items-center justify-between">
+              <span class="text-gray-300 text-sm w-10">Max:</span>
+              <div class="slider-container w-32 mx-4">
+                <input id="brightness-controls"  type="range" bind:value="{max_waterfall}" min="0" max="255" step="1"
+                       class="glass-slider w-full" on:input="{handleMaxMove}">
+              </div>
+              <span class="value-display text-gray-300 w-10 text-right">{max_waterfall}</span>
+            </div>
+          </div>
+        </div>
+      {/if}
+    </div>
+  </div>
+  
+
+</div>
+
+<!--Waterfall Tab End-->
       
         <!--Bookmarks Tab Start-->
 <div class="{activeTab === 'bookmarks' ? '' : 'hidden'} p-4">
