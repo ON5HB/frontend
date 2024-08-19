@@ -266,6 +266,7 @@
   // Waterfall magnification controls 
   function handleWaterfallMagnify (e, type) {
     
+    
     let [l, m, r] = audio.getAudioRange()
     const [waterfallL, waterfallR] = waterfall.getWaterfallRange()
     const offset = (m - waterfallL) / (waterfallR - waterfallL) * waterfall.canvasWidth
@@ -963,7 +964,7 @@
       <div class="max-w-screen-lg mx-auto">
 
         {#if showTutorial}
-          <div 
+          <div
             class="fixed inset-0 bg-black bg-opacity-70 z-50 flex items-center justify-center"
             on:click={nextStep}
             transition:fade="{{ duration: 300 }}"
@@ -987,12 +988,20 @@
               transition:fly="{{ y: 50, duration: 300 }}"
             >
               <p class="mb-4 text-lg">{tutorialSteps[currentStep].content}</p>
-              <button
-                class="px-6 py-2 bg-blue-600 text-white rounded-full hover:bg-blue-700 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50"
-                on:click|stopPropagation={nextStep}
-              >
-                {currentStep < tutorialSteps.length - 1 ? 'Next' : 'Finish'}
-              </button>
+              <div class="flex justify-between">
+                <button
+                  class="px-6 py-2 bg-red-600 text-white rounded-full hover:bg-red-700 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50"
+                  on:click|stopPropagation={endTutorial}
+                >
+                  Skip Tutorial
+                </button>
+                <button
+                  class="px-6 py-2 bg-blue-600 text-white rounded-full hover:bg-blue-700 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50"
+                  on:click|stopPropagation={nextStep}
+                >
+                  {currentStep < tutorialSteps.length - 1 ? 'Next' : 'Finish'}
+                </button>
+              </div>
             </div>
           </div>
         {/if}
@@ -1135,49 +1144,47 @@
         <!--Audio Tab End-->
 
        <!--Waterfall Tab Start-->
-<div class="{activeTab === 'waterfall' ? '' : 'hidden'} p-4">
-  <div class="space-y-6" >
-    <!-- Zoom Level -->
-    <div class="text-center mb-4" >
-      <div class="flex flex-wrap justify-center gap-2 mt-2" id="zoom-controls"  >
-        <button class="glass-button text-white font-bold py-2 px-3 rounded-lg flex items-center"
-                on:click="{(e) => handleWaterfallMagnify(e, '+')}" title="Zoom in">
-          <svg xmlns="http://www.w3.org/2000/svg"  class="h-5 w-5 mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="11" cy="11" r="8"/>
-            <line x1="21" y1="21" x2="16.65" y2="16.65"/>
-            <line x1="11" y1="8" x2="11" y2="14"/>
-            <line x1="8" y1="11" x2="14" y2="11"/>
-          </svg>
-          <span class="text-sm">In</span>
-        </button>
-        <button class="glass-button text-white font-bold py-2 px-3 rounded-lg flex items-center"
-                on:click="{(e) => handleWaterfallMagnify(e, '-')}" title="Zoom out">
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="11" cy="11" r="8"/>
-            <line x1="21" y1="21" x2="16.65" y2="16.65"/>
-            <line x1="8" y1="11" x2="14" y2="11"/>
-          </svg>
-          <span class="text-sm">Out</span>
-        </button>
-        <button class="glass-button text-white font-bold py-2 px-3 rounded-lg flex items-center"
-                on:click="{(e) => handleWaterfallMagnify(e, 'max')}" title="Zoom to max">
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
-            <line x1="3" y1="12" x2="21" y2="12"/>
-            <line x1="12" y1="3" x2="12" y2="21"/>
-          </svg>
-          <span class="text-sm">Max</span>
-        </button>
-        <button class="glass-button text-white font-bold py-2 px-3 rounded-lg flex items-center"
-                on:click="{(e) => handleWaterfallMagnify(e, 'min')}" title="Zoom to min">
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
-            <line x1="8" y1="12" x2="16" y2="12"/>
-          </svg>
-          <span class="text-sm">Min</span>
-        </button>
+  <div class="{activeTab === 'waterfall' ? '' : 'hidden'} p-4">
+    <div class="space-y-6" >
+      <!-- Zoom Level -->
+      <div class="text-center mb-4" >
+        <div class="flex flex-wrap justify-center gap-2 mt-2" id="zoom-controls"  >
+          <button class="glass-button text-white font-bold py-2 px-3 rounded-lg flex items-center" on:click="{(e) => handleWaterfallMagnify(e, '+')}" title="Zoom in">
+            <svg xmlns="http://www.w3.org/2000/svg"  class="h-5 w-5 mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="11" cy="11" r="8"/>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+              <line x1="11" y1="8" x2="11" y2="14"/>
+              <line x1="8" y1="11" x2="14" y2="11"/>
+            </svg>
+            <span class="text-sm">In</span>
+          </button>
+          <button class="glass-button text-white font-bold py-2 px-3 rounded-lg flex items-center" on:click="{(e) => handleWaterfallMagnify(e, '-')}" title="Zoom out">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="11" cy="11" r="8"/>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+              <line x1="8" y1="11" x2="14" y2="11"/>
+            </svg>
+            <span class="text-sm">Out</span>
+          </button>
+          <button class="glass-button text-white font-bold py-2 px-3 rounded-lg flex items-center"
+                  on:click="{(e) => handleWaterfallMagnify(e, 'max')}" title="Zoom to max">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+              <line x1="3" y1="12" x2="21" y2="12"/>
+              <line x1="12" y1="3" x2="12" y2="21"/>
+            </svg>
+            <span class="text-sm">Max</span>
+          </button>
+          <button class="glass-button text-white font-bold py-2 px-3 rounded-lg flex items-center"
+                  on:click="{(e) => handleWaterfallMagnify(e, 'min')}" title="Zoom to min">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+              <line x1="8" y1="12" x2="16" y2="12"/>
+            </svg>
+            <span class="text-sm">Min</span>
+          </button>
+        </div>
       </div>
-    </div>
 
       <!-- Controls -->
     <div class="space-y-4">

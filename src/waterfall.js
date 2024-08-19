@@ -156,20 +156,20 @@ export default class SpectrumWaterfall {
   stop () {
     this.waterfallSocket.close()
   }
-
+  /*
   setCanvasWidth() {
 
     const dpr = window.devicePixelRatio || 1;
 
-    let canvasWidth = window.innerWidth * dpr
+    let canvasWidth = window.outerWidth * dpr
 
-    this.canvasElem.width = canvasWidth
+    //this.canvasElem.width = canvasWidth
 
     this.canvasScale = canvasWidth / 1024
 
     // Aspect ratio is 1024 to 128px
     this.spectrumCanvasElem.width = canvasWidth
-    this.spectrumCanvasElem.height = canvasWidth / 1024 * 100
+    this.spectrumCanvasElem.height = canvasWidth / 1024 * 128
 
     // Aspect ratio is 1024 to 20px
     this.graduationCanvasElem.width = canvasWidth
@@ -177,12 +177,35 @@ export default class SpectrumWaterfall {
 
    
     
-    this.canvasElem.width = this.canvasElem.offsetWidth * dpr;
+    this.canvasElem.width = window.outerWidth;
     this.canvasElem.height = this.wfheight
 
     this.canvasWidth = this.canvasElem.width * window.devicePixelRatio
     this.canvasHeight = this.canvasElem.height
-  }
+  }*/
+    setCanvasWidth() {
+
+      const dpr = window.devicePixelRatio;
+
+      let canvasWidth = this.canvasElem.parentElement.clientWidth * window.devicePixelRatio
+  
+      this.canvasElem.width = canvasWidth
+  
+      this.canvasScale = canvasWidth / 1024
+  
+      // Aspect ratio is 1024 to 128px
+      this.spectrumCanvasElem.width = canvasWidth
+      this.spectrumCanvasElem.height = canvasWidth / 1024 * 128
+  
+      // Aspect ratio is 1024 to 20px
+      this.graduationCanvasElem.width = canvasWidth
+      this.graduationCanvasElem.height = canvasWidth / 1024 * 20
+
+      this.canvasElem.width = window.outerWidth * dpr;
+      this.canvasElem.height = this.wfheight * dpr;
+      this.canvasWidth = this.canvasElem.width
+      this.canvasHeight = this.canvasElem.height
+    }
 
   socketMessageInitial (event) {
     // First message gives the parameters in json
@@ -834,7 +857,7 @@ export default class SpectrumWaterfall {
   canvasWheel (e) {
     const computedStyle = window.getComputedStyle(e.target);
     const cursorStyle = computedStyle.cursor;
-    if (cursorStyle != 'crosshair') {
+    if (cursorStyle == 'resize') {
       return;
     }
     // For UI to pass custom zoom range
