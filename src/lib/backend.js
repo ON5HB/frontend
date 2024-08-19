@@ -8,7 +8,6 @@ let settings
 
 const location = window.location
 const baseUri = `${location.protocol.replace('http', 'ws')}//${location.host}`
-
 export const waterfall = new SpectrumWaterfall(baseUri + '/waterfall')
 export const audio = new SpectrumAudio(baseUri + '/audio')
 export const events = new SpectrumEvents(baseUri + '/events')
