@@ -39,21 +39,21 @@ export default class SpectrumEvent {
         }
       }
     }
-    if ('audio_kbits' in data) {
-      document.getElementById('total_audio_stream').textContent = parseInt(data.audio_kbits) + " kbit/s";
-    }
-    if ('waterfall_kbits' in data) {
-      document.getElementById('total_water_stream').textContent = parseInt(data.waterfall_kbits) + " kbit/s";
-    }
+ 
     if ('waterfall_clients' in data) {
       if(data.signal_clients > 1)
       {
-        document.getElementById('total_user_count').textContent = data.signal_clients + " Users";
+        document.getElementById('total_user_count').innerHTML = `
+          <span class="text-fuchsia-400 font-medium">${data.signal_clients} Users</span>
+          <span class="text-blue-500 font-medium">[${parseInt(data.waterfall_kbits + data.audio_kbits)} kbit/s] </span>
+        `;
       }else
       {
-        document.getElementById('total_user_count').textContent = data.signal_clients + " User";
+        document.getElementById('total_user_count').innerHTML = `
+          <span class="text-fuchsia-400 font-medium">${data.signal_clients} User</span>
+          <span class="text-blue-500 font-medium">[${parseInt(data.waterfall_kbits + data.audio_kbits)} kbit/s] </span>
+        `;
       }
-      
     }
     this.lastModified = performance.now()
   }

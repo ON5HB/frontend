@@ -160,9 +160,9 @@ export default class SpectrumAudio {
       case 'LSB':
         this.bassBoost.gain.value = 15
         this.bandpass.frequency.value = 1800
-        this.bandpass.Q.value = 1.2
+        this.bandpass.Q.value = 1
         this.bandpass.gain.value = 8  // Leicht erhöht für mehr Präsenz
-        this.highPass.frequency.value = 80
+        this.highPass.frequency.value = 20
         this.setLowpass(3000)
         break
       case 'CW-U':
@@ -401,7 +401,7 @@ export default class SpectrumAudio {
   }
 
   setGain(gain) {
-    gain /= 4;
+    gain /= 2;
     this.gain = gain
     this.gainNode.gain.value = gain
   }

@@ -235,39 +235,8 @@
     />
     <span class="text-white font-mono p-1 m-1 text-3xl">{frequencyUnit}</span>
   </div>
-  <div class="font-mono m-0 p-0" style="font-size: 0"
-    bind:this={frequencyScrollInput}
-    >
-    {#each frequencyDigits as { element, multiplier, separator, value }, i}
-      <input type="number"
-        class="text-white text-3xl text-center whitespace-pre px-1 m-0 outline-none bg-transparent caret-transparent cursor-crosshair focus:bg-gray-800"
-        style="width: 1em"
-        bind:this={element}
-        tabindex="-1"
-        on:wheel={(e) => handleFrequencyMousewheel(e, multiplier)}
-        on:keydown={(e) => handleFrequencyDigitKeyPress(e, multiplier)}
-        on:keyup={(e) => handleFrequencyDigitKeyUp(e, multiplier)}
-        on:mousemove={(e) => e.target.focus()}
-        use:pan
-        on:panstart={(e) => handleFrequencyDigitPanStart(e, multiplier)}
-        on:panmove={(e) => handleFrequencyDigitPanMove(e, multiplier)}
-        on:panend={(e) => handleFrequencyDigitPanEnd(e, multiplier)}
-        data-multiplier={multiplier}
-        value={value}
-        max="9"
-        min="0"
-        />
-      {#if separator}
-        <span class="text-white text-xl p-0 m-0">.</span>
-      {/if}
-    {/each}
-    <span class="text-white text-3xl px-1 mx-1">Hz</span>
-  </div>
-  <div class="transform -translate-y-full m-0 p-0">
-    {#if frequencyBFO}
-      <span class="absolute transform -translate-y-full font-mono m-0 p-1 text-white text-sm left-3/4">BFO: {Math.abs(frequencyBFO)}Hz</span>
-    {/if}
-  </div>
+  
+ 
 </div>
 
 <style>

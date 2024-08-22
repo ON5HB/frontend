@@ -40,35 +40,35 @@ export default class SpectrumWaterfall {
     this.wfheight = 200 * window.devicePixelRatio
 
     this.bands = [
-        { name: '2200M HAM', startFreq: 135700, endFreq: 137800, color: 'rgba(50, 168, 72, 0.3)' },
-        { name: '630M HAM', startFreq: 472000, endFreq: 479000, color: 'rgba(50, 168, 72, 0.3)' },
-        { name: '600M HAM', startFreq: 501000, endFreq: 504000, color: 'rgba(50, 168, 72, 0.3)' },
-        { name: '160M HAM', startFreq: 1810000, endFreq: 2000000, color: 'rgba(50, 168, 72, 0.3)' },
-        { name: '80M HAM', startFreq: 3500000, endFreq: 3900000, color: 'rgba(50, 168, 72, 0.3)' },
-        { name: '60M HAM', startFreq: 5351500, endFreq: 5366500, color: 'rgba(50, 168, 72, 0.3)' },
-        { name: '49M AM', startFreq: 5900000, endFreq: 6200000, color: 'rgba(199, 12, 193, 0.3)' },
-        { name: '40M HAM', startFreq: 7000000, endFreq: 7200000, color: 'rgba(50, 78, 168, 0.3)' }, 
-        { name: '41M AM', startFreq: 7200000, endFreq: 7450000, color: 'rgba(199, 12, 193, 0.3)' }, 
-        { name: '31M AM', startFreq: 9400000, endFreq: 9900000, color: 'rgba(199, 12, 193, 0.3)' }, 
-        { name: '30M HAM', startFreq: 10100000, endFreq: 10150000, color: 'rgba(199, 49, 12, 0.3)' }, 
-        { name: '25M AM', startFreq: 11600000, endFreq: 12100000, color: 'rgba(199, 12, 193, 0.3)' }, 
-        { name: '22M AM', startFreq: 13570000, endFreq: 13870000, color: 'rgba(199, 12, 193, 0.3)' }, 
-        { name: '20M HAM', startFreq: 14000000, endFreq: 14350000, color: 'rgba(255, 0, 0, 0.3)' }, 
-        { name: '19M AM', startFreq: 15100000, endFreq: 15800000, color: 'rgba(199, 12, 193, 0.3)' }, 
-        { name: '16M AM', startFreq: 17480000, endFreq: 17900000, color: 'rgba(199, 12, 193, 0.3)' }, 
-        { name: '17M AM', startFreq: 18068000, endFreq: 18168000, color: 'rgba(199, 12, 193, 0.3)' }, 
-        { name: '15M AM', startFreq: 18900000, endFreq: 19020000, color: 'rgba(199, 12, 193, 0.3)' }, 
-        { name: '15M HAM', startFreq: 21000000, endFreq: 21450000, color: 'rgba(6, 204, 214, 0.3)' }, 
-        { name: '13M AM', startFreq: 21450000, endFreq: 21850000, color: 'rgba(199, 12, 193, 0.3)' }, 
-        { name: '12M HAM', startFreq: 24890000, endFreq: 24990000, color: 'rgba(2, 155, 250, 0.3)' }, 
-        { name: '11M AM', startFreq: 25670000, endFreq: 26100000, color: 'rgba(199, 12, 193, 0.3)' },
-        { name: 'CB', startFreq: 26965000, endFreq: 27405000, color: 'rgba(3, 227, 252, 0.3)' },  
-        { name: '10M HAM', startFreq: 28000000, endFreq: 29700000, color: 'rgba(151, 2, 250, 0.3)' }, 
-        { name: '6M HAM', startFreq: 50000000, endFreq: 54000000, color: 'rgba(50, 168, 72, 0.3)' },
-        { name: '4M HAM', startFreq: 69950000, endFreq: 69950000, color: 'rgba(50, 168, 72, 0.3)' },
-        { name: '4M HAM', startFreq: 70112500, endFreq: 70412500, color: 'rgba(50, 168, 72, 0.3)' },
-        { name: '2M HAM', startFreq: 144000000, endFreq: 148000000, color: 'rgba(50, 168, 72, 0.3)' },
-        { name: '70CM HAM', startFreq: 430000000, endFreq: 440000000, color: 'rgba(50, 168, 72, 0.3)' },
+        { name: '2200M HAM', startFreq: 135700, endFreq: 137800, color: 'rgba(50, 168, 72, 0.6)' },
+        { name: '630M HAM', startFreq: 472000, endFreq: 479000, color: 'rgba(50, 168, 72, 0.6)' },
+        { name: '600M HAM', startFreq: 501000, endFreq: 504000, color: 'rgba(50, 168, 72, 0.6)' },
+        { name: '160M HAM', startFreq: 1810000, endFreq: 2000000, color: 'rgba(50, 168, 72, 0.6)' },
+        { name: '80M HAM', startFreq: 3500000, endFreq: 3900000, color: 'rgba(50, 168, 72, 0.6)' },
+        { name: '60M HAM', startFreq: 5351500, endFreq: 5366500, color: 'rgba(50, 168, 72, 0.6)' },
+        { name: '49M AM', startFreq: 5900000, endFreq: 6200000, color: 'rgba(199, 12, 193, 0.6)' },
+        { name: '40M HAM', startFreq: 7000000, endFreq: 7200000, color: 'rgba(50, 78, 168, 0.6)' }, 
+        { name: '41M AM', startFreq: 7200000, endFreq: 7450000, color: 'rgba(199, 12, 193, 0.6)' }, 
+        { name: '31M AM', startFreq: 9400000, endFreq: 9900000, color: 'rgba(199, 12, 193, 0.6)' }, 
+        { name: '30M HAM', startFreq: 10100000, endFreq: 10150000, color: 'rgba(199, 49, 12, 0.6)' }, 
+        { name: '25M AM', startFreq: 11600000, endFreq: 12100000, color: 'rgba(199, 12, 193, 0.6)' }, 
+        { name: '22M AM', startFreq: 13570000, endFreq: 13870000, color: 'rgba(199, 12, 193, 0.6)' }, 
+        { name: '20M HAM', startFreq: 14000000, endFreq: 14350000, color: 'rgba(255, 0, 0, 0.6)' }, 
+        { name: '19M AM', startFreq: 15100000, endFreq: 15800000, color: 'rgba(199, 12, 193, 0.6)' }, 
+        { name: '16M AM', startFreq: 17480000, endFreq: 17900000, color: 'rgba(199, 12, 193, 0.6)' }, 
+        { name: '17M AM', startFreq: 18068000, endFreq: 18168000, color: 'rgba(199, 12, 193, 0.6)' }, 
+        { name: '15M AM', startFreq: 18900000, endFreq: 19020000, color: 'rgba(199, 12, 193, 0.6)' }, 
+        { name: '15M HAM', startFreq: 21000000, endFreq: 21450000, color: 'rgba(6, 204, 214, 0.6)' }, 
+        { name: '13M AM', startFreq: 21450000, endFreq: 21850000, color: 'rgba(199, 12, 193, 0.6)' }, 
+        { name: '12M HAM', startFreq: 24890000, endFreq: 24990000, color: 'rgba(2, 155, 250, 0.6)' }, 
+        { name: '11M AM', startFreq: 25670000, endFreq: 26100000, color: 'rgba(199, 12, 193, 0.6)' },
+        { name: 'CB', startFreq: 26965000, endFreq: 27405000, color: 'rgba(3, 227, 252, 0.6)' },  
+        { name: '10M HAM', startFreq: 28000000, endFreq: 29700000, color: 'rgba(151, 2, 250, 0.6)' }, 
+        { name: '6M HAM', startFreq: 50000000, endFreq: 54000000, color: 'rgba(50, 168, 72, 0.6)' },
+        { name: '4M HAM', startFreq: 69950000, endFreq: 69950000, color: 'rgba(50, 168, 72, 0.6)' },
+        { name: '4M HAM', startFreq: 70112500, endFreq: 70412500, color: 'rgba(50, 168, 72, 0.6)' },
+        { name: '2M HAM', startFreq: 144000000, endFreq: 148000000, color: 'rgba(50, 168, 72, 0.6)' },
+        { name: '70CM HAM', startFreq: 430000000, endFreq: 440000000, color: 'rgba(50, 168, 72, 0.6)' },
 
   ];
 
@@ -78,7 +78,7 @@ export default class SpectrumWaterfall {
   initCanvas (settings) {
     this.canvasElem = settings.canvasElem
     this.ctx = this.canvasElem.getContext('2d')
-    this.ctx.imagesmoothingEnabled = true
+    this.ctx.imagesmoothingEnabled = false
     //this.ctx.imageSmoothingQuality = "high"
     this.canvasWidth = this.canvasElem.width
     this.canvasHeight = this.canvasElem.height
@@ -86,11 +86,13 @@ export default class SpectrumWaterfall {
 
     this.curLine = this.canvasHeight / 2
 
-    this.ctx.fillStyle = this.backgroundColor
     this.ctx.fillRect(0, 0, this.canvasElem.width, this.canvasElem.height)
 
     this.graduationCanvasElem = settings.graduationCanvasElem
     this.graduationCtx = this.graduationCanvasElem.getContext('2d')
+
+    this.bandPlanCanvasElem = settings.bandPlanCanvasElem
+    this.bandPlanCtx = this.bandPlanCanvasElem.getContext('2d')
 
     this.spectrumCanvasElem = settings.spectrumCanvasElem
     this.spectrumCtx = this.spectrumCanvasElem.getContext('2d')
@@ -98,11 +100,17 @@ export default class SpectrumWaterfall {
     this.spectrumCanvasElem.addEventListener('mousemove', this.spectrumMouseMove.bind(this))
     this.spectrumCanvasElem.addEventListener('mouseleave', this.spectrumMouseLeave.bind(this))
 
+    
+
+
+
     this.tempCanvasElem = settings.tempCanvasElem
     this.tempCtx = this.tempCanvasElem.getContext('2d')
     this.tempCanvasElem.height = this.wfheight
 
     this.waterfall = true
+
+    this.mobile = false
 
     let resizeTimeout;
      this.resizeCallback = () => {
@@ -114,15 +122,16 @@ export default class SpectrumWaterfall {
       resizeCanvas.width = this.canvasElem.width
       resizeCanvas.height = this.canvasElem.height
       let resizeCtx = resizeCanvas.getContext('2d')
-      resizeCtx.imagesmoothingEnabled = true;
+      resizeCtx.imagesmoothingEnabled = false;
       resizeCtx.drawImage(this.canvasElem, 0, 0)
 
       
       this.curLine = Math.ceil(this.curLine * this.canvasElem.height / resizeCanvas.height)
       // Copy resizeCanvas to new canvas with scaling
-      this.ctx.imagesmoothingEnabled = true;
+      this.ctx.imagesmoothingEnabled = false;
       this.ctx.drawImage(resizeCanvas, 0, 0, resizeCanvas.width, resizeCanvas.height, 0, 0, this.canvasElem.width, this.canvasElem.height)
       this.updateGraduation()
+      this.updateBandPlan()
       //this.redrawWaterfall()
       resizeTimeout = undefined
     }
@@ -130,8 +139,8 @@ export default class SpectrumWaterfall {
       if (resizeTimeout) {
         clearTimeout(resizeTimeout)
       }
-      this.resizeCallback()
-      resizeTimeout = setTimeout(this.resizeCallback, 250)
+      //this.resizeCallback()
+      //resizeTimeout = setTimeout(this.resizeCallback, 250)
     })
   }
 
@@ -184,27 +193,43 @@ export default class SpectrumWaterfall {
     this.canvasHeight = this.canvasElem.height
   }*/
     setCanvasWidth() {
-
       const dpr = window.devicePixelRatio;
+      const screenWidth = window.innerWidth;
+    
+      let canvasWidth = screenWidth > 1024 ? 1024 : screenWidth;
+      canvasWidth *= dpr;
+      console.log(canvasWidth);
+      if(canvasWidth != 1024)
+      {
+        this.mobile = true;
+      }
 
-      let canvasWidth = this.canvasElem.parentElement.clientWidth * window.devicePixelRatio
-  
-      this.canvasElem.width = canvasWidth
-  
-      this.canvasScale = canvasWidth / 1024
-  
+    
+      this.canvasElem.width = canvasWidth;
+      this.canvasScale = canvasWidth / 1024;
+    
       // Aspect ratio is 1024 to 128px
-      this.spectrumCanvasElem.width = canvasWidth
-      this.spectrumCanvasElem.height = canvasWidth / 1024 * 128
-  
+      this.spectrumCanvasElem.width = canvasWidth;
+      this.spectrumCanvasElem.height = (canvasWidth / 1024) * 128;
+    
       // Aspect ratio is 1024 to 20px
-      this.graduationCanvasElem.width = canvasWidth
-      this.graduationCanvasElem.height = canvasWidth / 1024 * 20
+      this.graduationCanvasElem.width = canvasWidth;
+      this.graduationCanvasElem.height = (canvasWidth / 1024) * 20;
 
-      this.canvasElem.width = window.outerWidth * dpr;
-      this.canvasElem.height = this.wfheight * dpr;
-      this.canvasWidth = this.canvasElem.width
-      this.canvasHeight = this.canvasElem.height
+      // Aspect ratio is 1024 to 20px
+      this.bandPlanCanvasElem.width = canvasWidth;
+      this.bandPlanCanvasElem.height = (canvasWidth / 1024) * 40;
+    
+      this.canvasElem.height = this.wfheight;
+      this.canvasWidth = canvasWidth;
+      this.canvasHeight = this.canvasElem.height;
+
+      // Create a new canvas that will be used as a buffer
+      this.bufferCanvas = document.createElement('canvas');
+      this.bufferCanvas.width = this.canvasWidth;
+      this.bufferCanvas.height = this.canvasHeight;
+      this.bufferContext = this.bufferCanvas.getContext('2d', { alpha: false });
+
     }
 
   socketMessageInitial (event) {
@@ -224,7 +249,7 @@ export default class SpectrumWaterfall {
       this.setCanvasWidth()
       this.tempCanvasElem.width = settings.waterfall_size 
 
-      this.ctx.fillStyle = this.backgroundColor
+
       this.ctx.fillRect(0, 0, this.canvasElem.width, this.canvasElem.height)
 
       const skipNum = Math.max(1, Math.floor((this.sps / this.fftSize) / 10.0) * 2)
@@ -242,6 +267,7 @@ export default class SpectrumWaterfall {
 
       this.waterfallDecoder = createWaterfallDecoder(settings.waterfall_compression)
       this.updateGraduation()
+      this.updateBandPlan()
       this.resolvePromise(settings)
     }
   }
@@ -348,39 +374,31 @@ export default class SpectrumWaterfall {
     return [arr, pxL, pxR]
   }
 
-  drawSpectrogram () {
+  drawSpectrogram() {
+    const draw = () => {
       if (this.waterfallQueue.length === 0) {
-        requestAnimationFrame(this.drawSpectrogram.bind(this));
+        requestAnimationFrame(draw);
         return;
       }
-
+  
       const {data: waterfallArray, l: curL, r: curR} = this.waterfallQueue.pop();
-
       const [arr, pxL, pxR] = this.calculateOffsets(waterfallArray, curL, curR);
-
+  
       if (this.autoAdjust) {
         this.accumulateAdjustmentData(arr);
       }
-      
-      // Create a temporary canvas to draw onto
-      const tempCanvas = document.createElement('canvas');
-      tempCanvas.width = this.canvasWidth;
-      tempCanvas.height = this.canvasHeight;
-      const tempCtx = tempCanvas.getContext('2d');
-
-      // Draw onto the temporary canvas
-      if (this.waterfall) {
-        this.drawWaterfall(arr, pxL, pxR, curL, curR, tempCtx);
+  
+      if (this.waterfall && !this.spectrum) {
+        this.drawWaterfall(arr, pxL, pxR, curL, curR);
       }
       if (this.spectrum) {
-        this.drawSpectrum(arr, pxL, pxR, curL, curR, tempCtx);
+        this.drawSpectrum(arr, pxL, pxR, curL, curR);
       }
-
-      // Draw the temporary canvas onto the main canvas
-      this.ctx.drawImage(tempCanvas, 0, 0);
-
-      // Continue the animation loop
-      requestAnimationFrame(this.drawSpectrogram.bind(this));
+  
+      requestAnimationFrame(draw);
+    };
+  
+    requestAnimationFrame(draw);
   }
 
 
@@ -407,7 +425,30 @@ export default class SpectrumWaterfall {
     }
   }
 
-  drawWaterfallLine(arr, pxL, pxR, line) {
+  drawWaterfall(arr, pxL, pxR, curL, curR) {
+    // Ensure integer pixel values
+    pxL = Math.floor(pxL);
+    pxR = Math.ceil(pxR);
+  
+    // Calculate the width of the waterfall line
+    const width = pxR - pxL;
+  
+
+  
+    // Copy the current canvas content to the buffer canvas
+    this.bufferContext.drawImage(this.ctx.canvas, 0, 1, this.canvasWidth, this.canvasHeight - 1, 0, 0, this.canvasWidth, this.canvasHeight - 1);
+  
+    // Draw the new line at the top of the buffer canvas
+    this.drawWaterfallLine(arr, pxL, pxR, 0, this.bufferContext);
+  
+    // Clear the main canvas before drawing
+    this.ctx.clearRect(0, 0, this.canvasWidth, this.canvasHeight);
+  
+    // Draw the buffer canvas back to the main canvas
+    this.ctx.drawImage(this.bufferCanvas, 0, 0);
+  }
+  
+  drawWaterfallLine(arr, pxL, pxR, line, ctx) {
     // Ensure integer pixel values
     pxL = Math.floor(pxL);
     pxR = Math.ceil(pxR);
@@ -416,33 +457,20 @@ export default class SpectrumWaterfall {
     const width = pxR - pxL;
     
     // Create an ImageData object with the exact width we need
-    const colorarr = this.ctx.createImageData(width, 1);
+    const colorarr = ctx.createImageData(width, 1);
   
     for (let i = 0; i < width; i++) {
       // Map the pixel index to the corresponding array index
-      const arrIndex = Math.floor(i * arr.length / width);
-      const colorIndex = arr[arrIndex];
+      const arrIndex = Math.floor(i * (arr.length - 1) / (width - 1));
+      const colorIndex = Math.floor(arr[arrIndex]);
       
       // Set the color for this pixel
       const pixelStart = i * 4;
       colorarr.data.set(this.colormap[colorIndex], pixelStart);
     }
   
-    // Draw directly to the main canvas
-    this.ctx.putImageData(colorarr, pxL, line);
-  }
-  
-  drawWaterfall(arr, pxL, pxR, curL, curR) {
-    // Ensure integer pixel values
-    pxL = Math.floor(pxL);
-    pxR = Math.ceil(pxR);
-  
-    // Copy the current canvas content and shift it down by one pixel
-    const imageData = this.ctx.getImageData(0, 0, this.canvasWidth, this.canvasHeight - 1);
-    this.ctx.putImageData(imageData, 0, 1);
-  
-    // Draw the new line at the top
-    this.drawWaterfallLine(arr, pxL, pxR, 0);
+    // Draw directly to the buffer canvas
+    ctx.putImageData(colorarr, pxL, ctx.canvas.height - 1 - line);
   }
   
 
@@ -537,7 +565,7 @@ export default class SpectrumWaterfall {
     }
   }
 
-  updateGraduation () {
+  updateGraduation() {
     const freqL = this.idxToFreq(this.waterfallL)
     const freqR = this.idxToFreq(this.waterfallR)
     const scale = this.canvasScale
@@ -569,7 +597,12 @@ export default class SpectrumWaterfall {
       }
     }
     
-    this.graduationCtx.font = `${10 * scale}px Arial`
+    if(this.mobile) {
+      this.graduationCtx.font = `${12 * scale}px Inter`
+    } else {
+      this.graduationCtx.font = `${10 * scale}px Inter`
+    }
+    
     for (; freqLStart <= freqR; freqLStart += graduationSpacing) {
       // find the middle pixel
       const middlePixel = (freqLStart - freqL) / (freqR - freqL) * this.canvasWidth
@@ -586,19 +619,35 @@ export default class SpectrumWaterfall {
 
       if (printFreq) {
         this.graduationCtx.textAlign = 'center'
-        this.graduationCtx.fillText((freqLStart / 1000000).toFixed(6 - minimumTrailingZeros) + ' MHz', middlePixel, 7.5 * scale)
+        // Convert Hz to kHz by dividing by 1000, then round to remove decimal places
+        const freqInKHz = Math.round(freqLStart / 1000)
+        this.graduationCtx.fillText(freqInKHz.toString(), middlePixel, 20 * scale)
       }
       // draw a line in the middle of it
       this.graduationCtx.lineWidth = 1 * scale
       this.graduationCtx.beginPath()
-      this.graduationCtx.moveTo(middlePixel, (10 + (10 - lineHeight)) * scale)
-      this.graduationCtx.lineTo(middlePixel, (20) * scale)
+      this.graduationCtx.moveTo(middlePixel, (5 + (5 - lineHeight)) * scale)
+      this.graduationCtx.lineTo(middlePixel, (10) * scale)
       this.graduationCtx.stroke()
     }
 
-    // Define the height of the band marker rectangle
-    const bandHeight = 12; 
+    
 
+    this.drawClients()
+  }
+
+  updateBandPlan() {
+    const freqL = this.idxToFreq(this.waterfallL);
+    const freqR = this.idxToFreq(this.waterfallR);
+    const scale = this.canvasScale;
+  
+    // Clear the bandplan canvas
+    this.bandPlanCtx.clearRect(0, 0, this.bandPlanCanvasElem.width, this.bandPlanCanvasElem.height);
+  
+    // Define the height of the band marker
+    const bandHeight = 10 * scale;
+    const bandOffset = 25 * scale;
+  
     // Loop through each band and draw it
     this.bands.forEach(band => {
       const startIdx = this.freqToIdx(band.startFreq);
@@ -606,38 +655,46 @@ export default class SpectrumWaterfall {
       const startX = this.idxToCanvasX(startIdx);
       const endX = this.idxToCanvasX(endIdx);
       const bandWidth = endX - startX;
-
-      // Draw the band range as a rectangle
-      this.graduationCtx.fillStyle = band.color;
-      this.graduationCtx.fillRect(startX, this.graduationCanvasElem.height - bandHeight, bandWidth, bandHeight);
-
-      // Dynamically calculate font size based on the width of the band marker
-      let fontSize = Math.max(Math.min(bandWidth / band.name.length, 10), 4);
-
-
+  
+      // Calculate the y-position for the band
+      const bandY = this.bandPlanCanvasElem.height - bandHeight - bandOffset;
+  
+      // Draw the band line
+      this.bandPlanCtx.strokeStyle = band.color;
+      this.bandPlanCtx.lineWidth = 2 * scale;
+      this.bandPlanCtx.beginPath();
+      this.bandPlanCtx.moveTo(startX, bandY);
+      this.bandPlanCtx.lineTo(endX, bandY);
+      this.bandPlanCtx.stroke();
+      let fontSize;
       // Set the font for the band label
-      this.graduationCtx.fillStyle = 'white';
-      this.graduationCtx.font = `${fontSize}px Arial`;
-      this.graduationCtx.textAlign = 'center';
-
-      // Ensure the font size is such that the text will fit within the rectangle
-      if (this.graduationCtx.measureText(band.name).width < bandWidth) {
-        // Draw the text centered within the band marker rectangle
-        this.graduationCtx.fillText(band.name, (startX + endX) / 2, this.graduationCanvasElem.height - bandHeight / 2 + fontSize / 3);
+      if(this.mobile) {
+        fontSize = Math.max(Math.min(bandWidth / band.name.length, 14), 8) * scale;
       } else {
-        // If the text does not fit, we could scale down the font size until it does or skip drawing the label
-        // This is a simple loop to decrease font size until the text fits
-        while (this.graduationCtx.measureText(band.name).width >= bandWidth && fontSize > 6) {
+        fontSize = Math.max(Math.min(bandWidth / band.name.length, 10), 8) * scale;
+      }
+
+      
+      this.bandPlanCtx.fillStyle = 'white';
+      this.bandPlanCtx.font = `${fontSize}px Inter`;
+      this.bandPlanCtx.textAlign = 'center';
+  
+      // Calculate the y-position for the text
+      const textY = bandY + bandHeight + fontSize - 8;
+  
+      // Draw the text
+      if (this.bandPlanCtx.measureText(band.name).width < bandWidth) {
+        this.bandPlanCtx.fillText(band.name, (startX + endX) / 2, textY);
+      } else {
+        while (this.bandPlanCtx.measureText(band.name).width >= bandWidth && fontSize > 6 * scale) {
           fontSize--;
-          this.graduationCtx.font = `${fontSize}px Arial`;
+          this.bandPlanCtx.font = `${fontSize}px Inter`;
         }
-        if (fontSize > 4) { // Check again if text fits after resizing, then draw it
-          this.graduationCtx.fillText(band.name, (startX + endX) / 2, this.graduationCanvasElem.height - bandHeight / 2 + fontSize / 3);
+        if (fontSize > 6 * scale) {
+          this.bandPlanCtx.fillText(band.name, (startX + endX) / 2, textY);
         }
       }
     });
-
-    this.drawClients()
   }
 
   setClients (clients) {
@@ -726,43 +783,21 @@ export default class SpectrumWaterfall {
       r: this.waterfallR
     }));
   
-    const prevWidth = prevR - prevL;
-    const newWidth = waterfallR - waterfallL;
-    const isZoomingIn = newWidth < prevWidth;
-  
-    // Create a temporary canvas
-    const tempCanvas = document.createElement('canvas');
-    tempCanvas.width = this.canvasWidth;
-    tempCanvas.height = this.canvasHeight;
-    const tempCtx = tempCanvas.getContext('2d');
-  
-    // Draw the current canvas content onto the temp canvas
-    tempCtx.drawImage(this.canvasElem, 0, 0);
-  
-  
-  
-    const newCanvasX1 = this.idxToCanvasX(prevL);
-    const newCanvasX2 = this.idxToCanvasX(prevR);
-    const newCanvasWidth = newCanvasX2 - newCanvasX1;
-  
-    // Clear the main canvas
-    this.ctx.clearRect(0, 0, this.canvasWidth, this.canvasHeight);
-  
-    // Draw the scaled (and possibly blurred) image back to the main canvas
-    this.ctx.drawImage(
-      tempCanvas, 
-      0, 0, this.canvasWidth, this.canvasHeight,
-      newCanvasX1, 0, newCanvasWidth, this.canvasHeight
-    );
+    const newCanvasX1 = this.idxToCanvasX(prevL)
+    const newCanvasX2 = this.idxToCanvasX(prevR)
+    const newCanvasWidth = newCanvasX2 - newCanvasX1
+
+    this.ctx.drawImage(this.canvasElem, 0, 0, this.canvasWidth, this.canvasHeight, newCanvasX1, 0, newCanvasWidth, this.canvasHeight)
+
   
     // Special case for zoom out or panning, blank the borders
     if ((prevR - prevL) <= (waterfallR - waterfallL) + 1) {
-      this.ctx.fillStyle = this.backgroundColor;
       this.ctx.fillRect(0, 0, newCanvasX1, this.canvasHeight);
       this.ctx.fillRect(newCanvasX2, 0, this.canvasWidth - newCanvasX2, this.canvasHeight);
     }
   
     this.updateGraduation();
+    this.updateBandPlan();
     this.drawSpectrogram();
   }
 
@@ -807,7 +842,7 @@ export default class SpectrumWaterfall {
     this.spectrum = spectrum
     if(spectrum == true)
     {
-      this.wfheight = 600 * window.devicePixelRatio;
+      this.wfheight = 200 * window.devicePixelRatio;
       if(typeof this.resizeCallback == 'function')
       {
         this.resizeCallback();
@@ -826,7 +861,7 @@ export default class SpectrumWaterfall {
   setWaterfallBig (big) {
     if(big == true)
     {
-      this.wfheight = 400 * window.devicePixelRatio;
+      this.wfheight = 300 * window.devicePixelRatio;
       if(typeof this.resizeCallback == 'function')
       {
         this.resizeCallback();
