@@ -5,17 +5,15 @@
   import { RollingMax } from "efficient-rolling-stats";
   import { writable } from "svelte/store";
 
-  import CheckButton from "./lib/CheckButton.svelte";
-  import LineThroughButton from "./lib/LineThroughButton.svelte";
   import PassbandTuner from "./lib/PassbandTuner.svelte";
   import FrequencyInput from "./lib/FrequencyInput.svelte";
   import FrequencyMarkers from "./lib/FrequencyMarkers.svelte";
-  import Tooltip from "./lib/Tooltip.svelte";
-  import Popover from "./lib/Popover.svelte";
-  import Logger from "./lib/Logger.svelte";
+
+
+
 
   import { pinch, pan } from "./lib/hammeractions.js";
-  import { availableColormaps, drawColormapPreview } from "./lib/colormaps";
+  import { availableColormaps } from "./lib/colormaps";
   import {
     init,
     audio,
@@ -33,16 +31,12 @@
     storeInLocalStorage,
   } from "./lib/storage.js";
 
-  import { slide } from "svelte/transition";
-  import { quintOut } from "svelte/easing";
 
   let waterfallCanvas;
   let spectrumCanvas;
   let graduationCanvas;
   let bandPlanCanvas;
   let tempCanvas;
-
-  var coolFreuency = 0;
 
   let frequencyInputComponent;
 
@@ -52,15 +46,7 @@
 
   let link;
   var chatContentDiv;
-  let zoomLvl;
 
-  let originalFrequency;
-
-  let activeTab = "waterfall"; // Default active tab
-
-  function setActiveTab(tabName) {
-    activeTab = tabName;
-  }
 
   function generateUniqueId() {
     return (
@@ -134,15 +120,12 @@
     biggerWaterfall = !biggerWaterfall;
     waterfall.setWaterfallBig(biggerWaterfall);
   }
-  function handleWaterfallChange() {
-    waterfall.setWaterfall(waterfallDisplay);
-  }
+
 
   let bandwidth;
 
   // Waterfall drawing
   let currentColormap = "twentev2";
-  let colormapPreview;
   let alpha = 0.5;
   let brightness = 130;
   let min_waterfall = -30;
@@ -560,11 +543,33 @@
   let messages = writable([]);
   let newMessage = "";
   let socket;
-  let userName = `user${Math.floor(Math.random() * 10000)}`;
+  
+
+
+  let username = `user${Math.floor(Math.random() * 10000)}`;
+  let showUsernameInput  = false;
+
+  onMount(() => {
+    username = localStorage.getItem('chatusername') || '';
+    if(!username) {
+      console.log("No Username. Setting a random username.");
+      username = `user${Math.floor(Math.random() * 10000)}`
+    }
+    showUsernameInput  = !username;
+  });
+
+  function saveUsername() {
+    localStorage.setItem('chatusername', username);
+    showUsernameInput  = false;
+  }
+
+  function editUsername() {
+    showUsernameInput  = true;
+  }
 
   const formatMessage = (text) => {
     const now = new Date();
-    return `${userName}: ${text.substring(0, 500)}`; // Ensure message is capped at 25 chars
+    return `${username}: ${text.substring(0, 500)}`; // Ensure message is capped at 25 chars
   };
 
 
@@ -627,26 +632,6 @@
     showBookmarkPopup = !showBookmarkPopup;
   }
 
-  // Decoder settings
-  let logger;
-  let signalDecoder = "none";
-  const decoders = ["none"]; //, 'rds', 'ft8']
-  async function handleDecoderChange(e, changed) {
-    /*if (audio.getSignalDecoder()) {
-      audio.getSignalDecoder().stop()
-      audio.setSignalDecoder(null)
-    }
-    if (signalDecoder !== 'none') {
-      const decoder = new Decoder(signalDecoder, audio.trueAudioSps, (text) => {
-        if (logger) {
-          logger.addLine(text)
-        }
-      })
-      // Wait for the decode to initialize before running
-      await decoder.promise()
-      audio.setSignalDecoder(decoder)
-    }*/
-  }
 
   let currentStep = 0;
   let showTutorial = false;
@@ -912,7 +897,7 @@
     
     function setWidth() {
       const width = middleColumn.offsetWidth;
-      document.documentElement.style.setProperty('--middle-column-width', `${width}px`);
+      document.documentElement.style.setProperty('--middle-column-width', `1300px`);
     }
 
     setWidth();
@@ -924,12 +909,11 @@
   });
 
   function sendMessage() {
-    const trimmedMessage = newMessage.trim();
-    if (trimmedMessage) {
+    if (newMessage.trim() && username.trim()) {
       const messageObject = {
         cmd: "chat",
-        message: trimmedMessage,
-        userid: userId,
+        message: newMessage.trim(),
+        username: username
       };
       socket.send(JSON.stringify(messageObject));
       newMessage = "";
@@ -979,36 +963,78 @@
   }
 
   function formatFrequencyMessage(text) {
-    console.log("Formatting message:", text);
-    const regex = /(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) (user\d+): (.+)/;
+    const regex = /^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) ([\w-]+): (.+)$/;
     const match = text.match(regex);
     if (match) {
       const [_, timestamp, username, message] = match;
-      const freqRegex = /\[FREQ:(\d+):(\w+)\]/;
+      const sanitizedUsername = escapeHtml(username);
+      const freqRegex = /\[FREQ:(\d+):([\w-]+)\]/;
       const freqMatch = message.match(freqRegex);
       if (freqMatch) {
         const [fullMatch, frequency, demodulation] = freqMatch;
+        const sanitizedDemodulation = escapeHtml(demodulation);
+        const [beforeFreq, afterFreq] = message.split(fullMatch).map(part => formatLinks(escapeHtml(part)));
         return {
           isFormatted: true,
-          timestamp,
-          username,
+          timestamp: escapeHtml(timestamp),
+          username: sanitizedUsername,
           frequency: parseInt(frequency, 10),
-          demodulation,
-          beforeFreq: message.split(fullMatch)[0],
-          afterFreq: message.split(fullMatch)[1],
+          demodulation: sanitizedDemodulation,
+          beforeFreq,
+          afterFreq,
         };
       }
       return {
         isFormatted: false,
-        timestamp,
-        username,
-        text: message,
+        timestamp: escapeHtml(timestamp),
+        username: sanitizedUsername,
+        parts: formatLinks(escapeHtml(message)),
       };
     }
     return {
       isFormatted: false,
-      text,
+      parts: formatLinks(escapeHtml(text)),
     };
+  }
+
+  // Helper function to escape HTML special characters
+  function escapeHtml(unsafe) {
+    return unsafe
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+  }
+
+  function formatLinks(text) {
+    const urlRegex = /(https?:\/\/[^\s]+)/g;
+    const parts = [];
+    let lastIndex = 0;
+    let match;
+
+    while ((match = urlRegex.exec(text)) !== null) {
+      if (match.index > lastIndex) {
+        parts.push({ type: 'text', content: text.slice(lastIndex, match.index) });
+      }
+      parts.push({ type: 'link', content: match[0], url: match[0] });
+      lastIndex = match.index + match[0].length;
+    }
+
+    if (lastIndex < text.length) {
+      parts.push({ type: 'text', content: text.slice(lastIndex) });
+    }
+
+    return parts;
+  }
+
+  function renderParts(parts) {
+    return parts.map(part => {
+      if (part.type === 'link') {
+        return `<a href="${part.url}" target="_blank" rel="noopener noreferrer" class="text-blue-400 hover:underline">${part.content}</a>`;
+      }
+      return part.content;
+    }).join('');
   }
 
   onDestroy(() => {
@@ -1191,7 +1217,7 @@
 
           <!-- alles neu  -->
 
-          <div class="flex flex-col xl:flex-row rounded p-5 justify-center rounded">
+          <div class="flex flex-col xl:flex-row rounded p-5 justify-center rounded"  id="middle-column">
             <div
               class="p-5 flex flex-col bg-gray-700 
                     border-b xl:border-b-0 xl:border-r border-gray-500 
@@ -1305,7 +1331,7 @@
               {/if}
             </div>
 
-            <div class="flex flex-col items-center bg-gray-700 p-5" id="middle-column">
+            <div class="flex flex-col items-center bg-gray-700 p-5">
               <div class="flex flex-col items-center xl:items-start xl:flex-row bg-black rounded-lg " id="smeter-tut">
                 <div class="flex flex-col justify-center xl:ml-4 w-48 pt-2">
                   <input
@@ -1690,8 +1716,46 @@
           
           <!-- Chat box -->
           <div class="flex justify-center w-full">
-          <div class="bg-gray-700 rounded-lg p-4 mb-48 xl:mb-8 w-full" id="chat-box" style="max-width: var(--middle-column-width);">
+          <div class="bg-gray-700 rounded-lg p-4 mb-48 xl:mb-8 w-full" id="chat-box" >
             <h3 class="text-white text-lg mb-2">Chat</h3>
+
+            <!-- Username Input -->
+            <div class="flex items-center justify-center space-x-2 mb-2 username-container">
+              {#if showUsernameInput}
+                <div>
+                  <input
+                    class="glass-input text-white p-2 rounded-lg outline-none text-sm flex-grow"
+                    bind:value={username}
+                    placeholder="Name/callsign"
+                    on:keydown={(e) => e.key === 'Enter' && saveUsername()}
+                  />
+                </div>
+                <button
+                  class="glass-button text-white p-2 rounded-lg flex items-center justify-center"
+                  on:click={saveUsername}
+                  title="Save username"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
+                  </svg>
+                </button>
+              {:else}
+                <div class="flex items-center">
+                  <span class="glass-username text-white text-sm px-3 py-1 rounded-lg mr-2" title={username}>
+                    {username || 'Anonymous'}
+                  </span>
+                  <button
+                    class="glass-button text-white p-2 rounded-lg flex items-center justify-center"
+                    on:click={editUsername}
+                    title="Edit username"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                      <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+                    </svg>
+                  </button>
+                </div>
+              {/if}
+            </div>
           
             <!-- Chat Messages Container -->
             <div class="custom-scrollbar overflow-auto h-48 mb-2" id="chat_content">
@@ -1705,7 +1769,7 @@
                     <p class="text-white text-xs break-words">
                       <span class="font-semibold">{formattedMessage.username}: </span>
                       {#if formattedMessage.isFormatted}
-                        {formattedMessage.beforeFreq}
+                        {@html renderParts(formattedMessage.beforeFreq)}
                         <a
                           href="#"
                           class="text-blue-300 hover:underline"
@@ -1718,9 +1782,9 @@
                           {(formattedMessage.frequency / 1000).toFixed(3)}
                           kHz ({formattedMessage.demodulation})
                         </a>
-                        {formattedMessage.afterFreq}
+                        {@html renderParts(formattedMessage.afterFreq)}
                       {:else}
-                        {formattedMessage.text}
+                        {@html renderParts(formattedMessage.parts)}
                       {/if}
                     </p>
                   </div>
@@ -1772,10 +1836,9 @@
             </div>
           </div>
         </div>
-
+      </div>
         </div>
       </div>
-    </div>
   </div>
 </main>
 
@@ -1788,6 +1851,12 @@
   :root {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen,
       Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
+  }
+
+  @media (min-width: 1200px) {
+    #chat-box {
+      min-width: var(--middle-column-width);
+    }
   }
 
   .full-screen-container {
@@ -1887,6 +1956,16 @@
 
   .bg-custom-dark {
     background: linear-gradient(135deg, #1a1c2e, #2a2c3e);
+  }
+
+  .glass-username {
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(5px);
+    display: inline-block;
+    max-width: 150px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .glass-button {
