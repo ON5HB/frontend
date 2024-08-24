@@ -4,7 +4,7 @@ import createWindow from 'live-moving-average'
 import { decode as cbor_decode } from 'cbor-x';
 import { encode, decode } from "./modules/ft8.js";
 
-import { AudioContext, ConvolverNode, IIRFilterNode, GainNode, AudioBuffer, AudioBufferSourceNode } from 'standardized-audio-context'
+import { AudioContext, ConvolverNode, IIRFilterNode, GainNode, AudioBuffer, AudioBufferSourceNode, DynamicsCompressorNode } from 'standardized-audio-context'
 import { BiquadFilterNode } from 'standardized-audio-context';
 export default class SpectrumAudio {
   constructor(endpoint) {
@@ -113,37 +113,55 @@ export default class SpectrumAudio {
     // Bass boost (lowshelf filter)
     this.bassBoost = new BiquadFilterNode(this.audioCtx)
     this.bassBoost.type = 'lowshelf'
-    this.bassBoost.frequency.value = 200  // Frequenz etwas reduziert
-    this.bassBoost.Q.value = 0.5
-    this.bassBoost.gain.value = 25  // Verstärkung erhöht
+    this.bassBoost.frequency.value = 150
+    this.bassBoost.Q.value = 0.7
+    this.bassBoost.gain.value = 6
   
     // Bandpass filter for speech enhancement
     this.bandpass = new BiquadFilterNode(this.audioCtx)
-    this.bandpass.type = 'peaking'  // Geändert zu 'peaking' für sanftere Anpassung
-    this.bandpass.frequency.value = 1500
-    this.bandpass.Q.value = 1.5
-    this.bandpass.gain.value = 6  // Leichte Verstärkung der Mitten
-
+    this.bandpass.type = 'peaking'
+    this.bandpass.frequency.value = 1800
+    this.bandpass.Q.value = 1.2
+    this.bandpass.gain.value = 3
   
     // High-pass filter
     this.highPass = new BiquadFilterNode(this.audioCtx)
     this.highPass.type = 'highpass'
-    this.highPass.frequency.value = 80  // Frequenz reduziert für mehr Bass
-    this.highPass.Q.value = 0.5
+    this.highPass.frequency.value = 60
+    this.highPass.Q.value = 0.7
+    
+    // Presence boost
+    this.presenceBoost = new BiquadFilterNode(this.audioCtx)
+    this.presenceBoost.type = 'peaking'
+    this.presenceBoost.frequency.value = 3500
+    this.presenceBoost.Q.value = 1.5
+    this.presenceBoost.gain.value = 4
     
     // Convolver node for additional filtering
     this.convolverNode = new ConvolverNode(this.audioCtx)
     this.setLowpass(15000)
   
+    // Dynamic compressor
+    this.compressor = new DynamicsCompressorNode(this.audioCtx)
+    this.compressor.threshold.value = -24
+    this.compressor.knee.value = 30
+    this.compressor.ratio.value = 12
+    this.compressor.attack.value = 0.003
+    this.compressor.release.value = 0.25
+  
     // Gain node
     this.gainNode = new GainNode(this.audioCtx)
-    this.setGain(10)
+    this.setGain(5)
+  
+
   
     // Connect nodes in the correct order
     this.convolverNode.connect(this.highPass)
     this.highPass.connect(this.bandpass)
     this.bandpass.connect(this.bassBoost)
-    this.bassBoost.connect(this.gainNode)
+    this.bassBoost.connect(this.presenceBoost)
+    this.presenceBoost.connect(this.compressor)
+    this.compressor.connect(this.gainNode)
     this.gainNode.connect(this.audioCtx.destination)
   
     this.audioInputNode = this.convolverNode
@@ -158,48 +176,45 @@ export default class SpectrumAudio {
     switch (this.demodulation) {
       case 'USB':
       case 'LSB':
-        this.bassBoost.gain.value = 15
+        this.bassBoost.gain.value = 4
         this.bandpass.frequency.value = 1800
-        this.bandpass.Q.value = 1
-        this.bandpass.gain.value = 8  // Leicht erhöht für mehr Präsenz
-        this.highPass.frequency.value = 20
+        this.bandpass.Q.value = 1.2
+        this.bandpass.gain.value = 3
+        this.highPass.frequency.value = 60
+        this.presenceBoost.gain.value = 4
         this.setLowpass(3000)
         break
       case 'CW-U':
       case 'CW-L':
         this.bassBoost.gain.value = 0
         this.bandpass.frequency.value = 700
-        this.bandpass.Q.value = 5
-        this.bandpass.gain.value = 10
-        this.highPass.frequency.value = 500
+        this.bandpass.Q.value = 4
+        this.bandpass.gain.value = 6
+        this.highPass.frequency.value = 400
+        this.presenceBoost.gain.value = 2
         this.setLowpass(1000)
         break
       case 'AM':
-        this.bassBoost.gain.value = 20
+        this.bassBoost.gain.value = 5
         this.bandpass.frequency.value = 1500
         this.bandpass.Q.value = 1
-        this.bandpass.gain.value = 6
+        this.bandpass.gain.value = 2
         this.highPass.frequency.value = 50
+        this.presenceBoost.gain.value = 3
         this.setLowpass(4500)
         break
       case 'FM':
-        this.bassBoost.gain.value = 25
+        this.bassBoost.gain.value = 6
         this.bandpass.frequency.value = 1500
-        this.bandpass.Q.value = 0.5
-        this.bandpass.gain.value = 4
-        if(this.ctcss)
-        {
-          this.highPass.frequency.value = 300
-          
-        }else
-        {
-          this.highPass.frequency.value = 30
-        }
-        
+        this.bandpass.Q.value = 0.8
+        this.bandpass.gain.value = 2
+        this.highPass.frequency.value = this.ctcss ? 300 : 30
+        this.presenceBoost.gain.value = 3
         this.setLowpass(15000)
         break
     }
   }
+
 
   setFIRFilter(fir) {
     const firAudioBuffer = new AudioBuffer({ length: fir.length, numberOfChannels: 1, sampleRate: this.audioOutputSps })
@@ -401,9 +416,9 @@ export default class SpectrumAudio {
   }
 
   setGain(gain) {
-    gain /= 2;
-    this.gain = gain
-    this.gainNode.gain.value = gain
+    gain /= 35; 
+    this.gain = gain 
+    this.gainNode.gain.value = gain 
   }
 
   setMute(mute) {
@@ -612,51 +627,55 @@ export default class SpectrumAudio {
     if (this.audioCtx.state !== 'running') {
       return
     }
-
+  
     if (this.isCollecting && this.decodeFT8) {
-      
-      this.accumulator.push(...pcmArray); // Spread the array to flatten it upon insertion
+      this.accumulator.push(...pcmArray);
     }
-
+  
     const curPlayTime = this.playPCM(pcmArray, this.playTime, this.audioOutputSps, 1)
-
-    // buffering issues
-    if (this.playTime - this.audioCtx.currentTime <= curPlayTime) {
-      this.playTime = this.audioCtx.currentTime + (this.d + 4 * this.v) / 1000
-      console.log('underrun')
-    } else if (this.playTime - this.audioCtx.currentTime > 2) {
-      this.playTime = this.audioCtx.currentTime + (this.d + 4 * this.v) / 1000
-      console.log('overrun')
+  
+    // Dynamic adjustment of play time
+    const currentTime = this.audioCtx.currentTime;
+    const bufferThreshold = 0.1; // 100ms buffer
+  
+    if (this.playTime - currentTime <= bufferThreshold) {
+      // Underrun: increase buffer
+      this.playTime = currentTime + bufferThreshold + curPlayTime;
+      console.log('Adjusting for underrun');
+    } else if (this.playTime - currentTime > 0.5) {
+      // Overrun: decrease buffer
+      this.playTime = currentTime + bufferThreshold;
+      console.log('Adjusting for overrun');
+    } else {
+      // Normal operation: advance play time
+      this.playTime += curPlayTime;
     }
   }
-
-
-
-
   
-
   playPCM(buffer, playTime, sampleRate, scale) {
-    // Wait for the audio to be initialised
     if (!this.audioInputNode) {
-      return;
+      console.warn('Audio not initialized');
+      return 0;
     }
+  
     const source = new AudioBufferSourceNode(this.audioCtx);
+    const audioBuffer = new AudioBuffer({ 
+      length: buffer.length, 
+      numberOfChannels: 1, 
+      sampleRate: this.audioOutputSps 
+    });
   
-    const audioBuffer = new AudioBuffer({ length: buffer.length, numberOfChannels: 1, sampleRate: this.audioOutputSps });
-
-
-    audioBuffer.copyToChannel(buffer, 0, 0)
-    
-    
-
-  
-    
+    audioBuffer.copyToChannel(buffer, 0, 0);
   
     source.buffer = audioBuffer;
-    source.start(playTime);
-    this.playTime += audioBuffer.duration;
-  
     source.connect(this.audioInputNode);
+  
+    const scheduledTime = Math.max(playTime, this.audioCtx.currentTime);
+    source.start(scheduledTime);
+  
+    source.onended = () => {
+      source.disconnect();
+    };
   
     return audioBuffer.duration;
   }
