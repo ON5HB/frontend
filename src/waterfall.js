@@ -252,7 +252,7 @@ export default class SpectrumWaterfall {
 
       this.ctx.fillRect(0, 0, this.canvasElem.width, this.canvasElem.height)
 
-      const skipNum = Math.max(1, Math.floor((this.sps / this.fftSize) / 10.0) * 2)
+      const skipNum = Math.max(1, Math.floor((this.sps / this.fftSize) / 5.0) * 2)
       const waterfallFPS = (this.sps / this.fftSize) / (skipNum / 2)
       //this.waterfallQueue = new JitterBuffer(1000 / waterfallFPS)
       
