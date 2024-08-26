@@ -963,39 +963,39 @@
   }
 
   function formatFrequencyMessage(text) {
-    const regex = /^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) ([\w-]+): (.+)$/;
+    const regex = /^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) (.+?): (.+)$/;
     const match = text.match(regex);
     if (match) {
-      const [_, timestamp, username, message] = match;
-      const sanitizedUsername = escapeHtml(username);
-      const freqRegex = /\[FREQ:(\d+):([\w-]+)\]/;
-      const freqMatch = message.match(freqRegex);
-      if (freqMatch) {
-        const [fullMatch, frequency, demodulation] = freqMatch;
-        const sanitizedDemodulation = escapeHtml(demodulation);
-        const [beforeFreq, afterFreq] = message.split(fullMatch).map(part => formatLinks(escapeHtml(part)));
+        const [_, timestamp, username, message] = match;
+        const sanitizedUsername = escapeHtml(username);
+        const freqRegex = /\[FREQ:(\d+):([\w-]+)\]/;
+        const freqMatch = message.match(freqRegex);
+        if (freqMatch) {
+            const [fullMatch, frequency, demodulation] = freqMatch;
+            const sanitizedDemodulation = escapeHtml(demodulation);
+            const [beforeFreq, afterFreq] = message.split(fullMatch).map(part => formatLinks(escapeHtml(part)));
+            return {
+                isFormatted: true,
+                timestamp: escapeHtml(timestamp),
+                username: sanitizedUsername,
+                frequency: parseInt(frequency, 10),
+                demodulation: sanitizedDemodulation,
+                beforeFreq,
+                afterFreq,
+            };
+        }
         return {
-          isFormatted: true,
-          timestamp: escapeHtml(timestamp),
-          username: sanitizedUsername,
-          frequency: parseInt(frequency, 10),
-          demodulation: sanitizedDemodulation,
-          beforeFreq,
-          afterFreq,
+            isFormatted: false,
+            timestamp: escapeHtml(timestamp),
+            username: sanitizedUsername,
+            parts: formatLinks(escapeHtml(message)),
         };
-      }
-      return {
-        isFormatted: false,
-        timestamp: escapeHtml(timestamp),
-        username: sanitizedUsername,
-        parts: formatLinks(escapeHtml(message)),
-      };
     }
     return {
-      isFormatted: false,
-      parts: formatLinks(escapeHtml(text)),
+        isFormatted: false,
+        parts: formatLinks(escapeHtml(text)),
     };
-  }
+}
 
   // Helper function to escape HTML special characters
   function escapeHtml(unsafe) {
