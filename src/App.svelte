@@ -157,8 +157,8 @@
   // Audio demodulation selection
   let demodulators = ["USB", "LSB", "CW-U", "CW-L", "AM", "FM"];
   const demodulationDefaults = {
-    USB: { type: "USB", offsets: [-300, 2700] },
-    LSB: { type: "LSB", offsets: [2700, -300] },
+    USB: { type: "USB", offsets: [-100, 2700] },
+    LSB: { type: "LSB", offsets: [2700, -100] },
     "CW-U": { type: "USB", offsets: [-500, 1000], bfo: -700 },
     "CW-L": { type: "LSB", offsets: [1000, -500], bfo: 700 },
     AM: { type: "AM", offsets: [5000, 5000] },
