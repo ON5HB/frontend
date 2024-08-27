@@ -962,50 +962,46 @@
     updateLink();
   }
 
-  function formatFrequencyMessage(text) {
-    const regex = /^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) (.+?): (.+)$/;
-    const match = text.match(regex);
-    if (match) {
-        const [_, timestamp, username, message] = match;
-        const sanitizedUsername = escapeHtml(username);
-        const freqRegex = /\[FREQ:(\d+):([\w-]+)\]/;
-        const freqMatch = message.match(freqRegex);
-        if (freqMatch) {
-            const [fullMatch, frequency, demodulation] = freqMatch;
-            const sanitizedDemodulation = escapeHtml(demodulation);
-            const [beforeFreq, afterFreq] = message.split(fullMatch).map(part => formatLinks(escapeHtml(part)));
-            return {
-                isFormatted: true,
-                timestamp: escapeHtml(timestamp),
-                username: sanitizedUsername,
-                frequency: parseInt(frequency, 10),
-                demodulation: sanitizedDemodulation,
-                beforeFreq,
-                afterFreq,
-            };
-        }
-        return {
-            isFormatted: false,
-            timestamp: escapeHtml(timestamp),
-            username: sanitizedUsername,
-            parts: formatLinks(escapeHtml(message)),
-        };
-    }
-    return {
-        isFormatted: false,
-        parts: formatLinks(escapeHtml(text)),
-    };
-}
-
-  // Helper function to escape HTML special characters
-  function escapeHtml(unsafe) {
-    return unsafe
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;")
-      .replace(/'/g, "&#039;");
+  function sanitizeHtml(html) {
+    const div = document.createElement('div');
+    div.textContent = html;
+    return div.innerHTML;
   }
+
+  function formatFrequencyMessage(text) {
+      const regex = /^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) (.+?): (.+)$/;
+      const match = text.match(regex);
+      if (match) {
+          const [_, timestamp, username, message] = match;
+          const freqRegex = /\[FREQ:(\d+):([\w-]+)\]/;
+          const freqMatch = message.match(freqRegex);
+          if (freqMatch) {
+              const [fullMatch, frequency, demodulation] = freqMatch;
+              const [beforeFreq, afterFreq] = message.split(fullMatch).map(part => formatLinks(sanitizeHtml(part)));
+              return {
+                  isFormatted: true,
+                  timestamp: sanitizeHtml(timestamp),
+                  username: sanitizeHtml(username),
+                  frequency: parseInt(frequency, 10),
+                  demodulation: sanitizeHtml(demodulation),
+                  beforeFreq,
+                  afterFreq,
+              };
+          }
+          return {
+              isFormatted: false,
+              timestamp: sanitizeHtml(timestamp),
+              username: sanitizeHtml(username),
+              parts: formatLinks(sanitizeHtml(message)),
+          };
+      }
+      return {
+          isFormatted: false,
+          parts: formatLinks(sanitizeHtml(text)),
+      };
+  }
+
+
 
   function formatLinks(text) {
     const urlRegex = /(https?:\/\/[^\s]+)/g;
@@ -1029,12 +1025,12 @@
   }
 
   function renderParts(parts) {
-    return parts.map(part => {
-      if (part.type === 'link') {
-        return `<a href="${part.url}" target="_blank" rel="noopener noreferrer" class="text-blue-400 hover:underline">${part.content}</a>`;
-      }
-      return part.content;
-    }).join('');
+      return parts.map(part => {
+          if (part.type === 'link') {
+              return `<a href="${sanitizeHtml(part.url)}" target="_blank" rel="noopener noreferrer" class="text-blue-400 hover:underline">${sanitizeHtml(part.content)}</a>`;
+          }
+          return part.content;
+      }).join('');
   }
 
   onDestroy(() => {
