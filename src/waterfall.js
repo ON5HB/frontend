@@ -196,29 +196,29 @@ export default class SpectrumWaterfall {
       const dpr = window.devicePixelRatio;
       const screenWidth = window.innerWidth;
     
-      let canvasWidth = screenWidth > 1024 ? 1024 : screenWidth;
+      let canvasWidth = screenWidth > 1300 ? 1300 : screenWidth;
       canvasWidth *= dpr;
       console.log(canvasWidth);
-      if(canvasWidth != 1024)
+      if(canvasWidth != 1300)
       {
         this.mobile = true;
       }
 
     
       this.canvasElem.width = canvasWidth;
-      this.canvasScale = canvasWidth / 1024;
+      this.canvasScale = canvasWidth / 1300;
     
-      // Aspect ratio is 1024 to 128px
+      // Aspect ratio is 1300 to 128px
       this.spectrumCanvasElem.width = canvasWidth;
-      this.spectrumCanvasElem.height = (canvasWidth / 1024) * 128;
+      this.spectrumCanvasElem.height = (canvasWidth / 1300) * 128;
     
-      // Aspect ratio is 1024 to 20px
+      // Aspect ratio is 1300 to 20px
       this.graduationCanvasElem.width = canvasWidth;
-      this.graduationCanvasElem.height = (canvasWidth / 1024) * 20;
+      this.graduationCanvasElem.height = (canvasWidth / 1300) * 20;
 
-      // Aspect ratio is 1024 to 20px
+      // Aspect ratio is 1300 to 20px
       this.bandPlanCanvasElem.width = canvasWidth;
-      this.bandPlanCanvasElem.height = (canvasWidth / 1024) * 40;
+      this.bandPlanCanvasElem.height = (canvasWidth / 1300) * 40;
     
       this.canvasElem.height = this.wfheight;
       this.canvasWidth = canvasWidth;
@@ -316,8 +316,8 @@ export default class SpectrumWaterfall {
   }
 
   adjustWaterfallLimits(bufferedData) {
-    const minValue = Math.min(...bufferedData);
-    const maxValue = Math.max(...bufferedData) - 40;
+    const minValue = Math.min(...bufferedData) + 40;
+    const maxValue = Math.max(...bufferedData) - 20;
     // Apply dampening factor to smooth adjustments
     this.minWaterfall += (minValue - this.minWaterfall) * this.dampeningFactor;
     this.maxWaterfall += (maxValue - this.maxWaterfall) * this.dampeningFactor;
