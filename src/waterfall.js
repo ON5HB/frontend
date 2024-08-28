@@ -316,7 +316,7 @@ export default class SpectrumWaterfall {
   }
 
   adjustWaterfallLimits(bufferedData) {
-    const minValue = Math.min(...bufferedData) + 40;
+    const minValue = Math.min(...bufferedData) - 20;
     const maxValue = Math.max(...bufferedData) - 20;
     // Apply dampening factor to smooth adjustments
     this.minWaterfall += (minValue - this.minWaterfall) * this.dampeningFactor;
