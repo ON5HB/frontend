@@ -130,9 +130,23 @@
   let brightness = 130;
   let min_waterfall = -30;
   let max_waterfall = 110;
-  function handleWaterfallColormapSelect(event) {
+  function initializeColormap() {
+    // Check if a colormap is saved in local storage
+    const savedColormap = localStorage.getItem('selectedColormap');
+    if (savedColormap) {
+      currentColormap = savedColormap;
+    }
     waterfall.setColormap(currentColormap);
-    //drawColormapPreview(currentColormap, colormapPreview)
+  }
+
+  function handleWaterfallColormapSelect(event) {
+    currentColormap = event.target.value;
+    waterfall.setColormap(currentColormap);
+    
+    // Save the selected colormap to local storage
+    localStorage.setItem('selectedColormap', currentColormap);
+
+
   }
 
   // Waterfall slider controls
@@ -157,8 +171,8 @@
   // Audio demodulation selection
   let demodulators = ["USB", "LSB", "CW-U", "CW-L", "AM", "FM"];
   const demodulationDefaults = {
-    USB: { type: "USB", offsets: [-100, 2700] },
-    LSB: { type: "LSB", offsets: [2700, -100] },
+    USB: { type: "USB", offsets: [-100, 2800] },
+    LSB: { type: "LSB", offsets: [2800, -100] },
     "CW-U": { type: "USB", offsets: [-500, 1000], bfo: -700 },
     "CW-L": { type: "LSB", offsets: [1000, -500], bfo: 700 },
     AM: { type: "AM", offsets: [5000, 5000] },
@@ -306,7 +320,7 @@
   }
 
   let mute;
-  let volume = 50;
+  let volume = 65;
   let squelchEnable;
   let squelch = -50;
   let power = 0;
@@ -549,14 +563,7 @@
   let username = `user${Math.floor(Math.random() * 10000)}`;
   let showUsernameInput  = false;
 
-  onMount(() => {
-    username = localStorage.getItem('chatusername') || '';
-    if(!username) {
-      console.log("No Username. Setting a random username.");
-      username = `user${Math.floor(Math.random() * 10000)}`
-    }
-    showUsernameInput  = !username;
-  });
+
 
   function saveUsername() {
     localStorage.setItem('chatusername', username);
@@ -787,6 +794,8 @@
     backendPromise = init();
     await backendPromise;
 
+    
+
     // Enable after connection established
     [
       ...document.getElementsByTagName("button"),
@@ -814,6 +823,15 @@
       audio.baseFreq + audio.totalBandwidth,
     );
 
+
+
+    username = localStorage.getItem('chatusername') || '';
+    if(!username) {
+      console.log("No Username. Setting a random username.");
+      username = `user${Math.floor(Math.random() * 10000)}`
+    }
+    showUsernameInput  = !username;
+
     
  
 
@@ -839,7 +857,8 @@
     // Refresh all the controls to the initial value
     updatePassband();
     passbandTunerComponent.updatePassbandLimits();
-    handleWaterfallColormapSelect();
+    //handleWaterfallColormapSelect();
+    initializeColormap();
     handleDemodulationChange({}, true);
     handleSpectrumChange();
     handleVolumeChange();
@@ -1093,6 +1112,8 @@
           
      
       <div class="xl:pt-20"></div>
+      <div class="flex justify-center w-full" >
+        <div class="w-full" id="outer-waterfall-container"> 
       <div
         style="image-rendering:pixelated;"
         class="w-full xl:rounded-lg   peer overflow-hidden"
@@ -1162,6 +1183,8 @@
 
 
       </div>
+    </div>
+  </div>
 
       	<div class="flex absolute inset-0 z-20 justify-center items-center bg-gray-800 bg-opacity-75 backdrop-filter backdrop-blur-sm"  id="startaudio">
         	<button class="text-white font-bold py-2 px-4 rounded">Start Audio</button>
@@ -2215,4 +2238,13 @@ input:focus + .toggle-slider {
 input:checked + .toggle-slider:before {
   transform: translateX(18px);
 }
+
+
+
+@media screen and (min-width: 1300px) {
+  #outer-waterfall-container {
+    min-width: 1300px;
+  }
+}
+
 </style>
